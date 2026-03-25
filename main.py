@@ -34,7 +34,7 @@ import pdfplumber
 from pptx import Presentation as PptxPresentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt, Emu
-import google.generativeai as genai
+from google import genai
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Config
@@ -52,8 +52,7 @@ for d in (UPLOADS, OUTPUTS, STATIC):
 GEMINI_API_KEY = os.environ.get(
     "GEMINI_API_KEY", "AIzaSyBvnlnYaex2EecyzuJ9N3t1yInFII4U_zw"
 )
-genai.configure(api_key=GEMINI_API_KEY)
-_model = genai.GenerativeModel("gemini-1.5-flash")
+_client = genai.Client(api_key=GEMINI_API_KEY)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Persistence
@@ -105,7 +104,7 @@ async def fetch_url(url: str) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _gemini(prompt: str) -> str:
-    resp = _model.generate_content(prompt)
+    resp = _client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
     return resp.text.strip()
 
 def _gemini_json(prompt: str) -> dict | list:
