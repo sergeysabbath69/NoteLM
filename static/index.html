@@ -740,6 +740,9 @@ header {
 
       <!-- ── Generate ──────────────────────────────────── -->
       <div class="panel panel-scroll" id="panel-generate">
+        <div style="padding:12px 20px 4px;font-size:12px;color:var(--text3)" id="genSourceBanner">
+          Check ☑ sources in the sidebar to generate from multiple sources at once.
+        </div>
         <div class="generate-grid" id="generateGrid">
           <div class="gen-card" onclick="generate('presentation')" data-gen="presentation">
             <div class="gen-icon">📊</div>
@@ -996,6 +999,21 @@ function updateChatContext() {
       `<span class="context-chip">${n.slice(0,28)}</span>`
     ).join('');
   }
+  // Update generate panel banner
+  const banner = document.getElementById('genSourceBanner');
+  if (banner) {
+    const readyChecked = [...checkedIds].filter(id => sources[id]?.status === 'ready');
+    if (readyChecked.length === 0) {
+      banner.textContent = 'Check ☑ sources in the sidebar to generate from multiple sources at once.';
+      banner.style.color = 'var(--text3)';
+    } else if (readyChecked.length === 1) {
+      banner.textContent = `Generating from: ${sources[readyChecked[0]]?.name || readyChecked[0]}`;
+      banner.style.color = 'var(--accent2)';
+    } else {
+      banner.textContent = `Generating from ${readyChecked.length} sources: ${readyChecked.map(id => sources[id]?.name || id).join(', ').slice(0, 100)}`;
+      banner.style.color = 'var(--accent2)';
+    }
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1227,18 +1245,32 @@ function card(title, icon, color, html, fullWidth=false) {
 // Generate
 // ──────────────────────────────────────────────────────────────────────────────
 async function generate(type) {
-  const id = selectedId;
-  if (!id) { toast('Select a source first', 'error'); return; }
-  const s = sources[id];
-  if (!s) { toast('Source not found', 'error'); return; }
-  if (s.status === 'pending' || s.status === 'processing') { 
-    toast('Source is still processing, please wait…', 'error'); 
-    return; 
+  // Determine which sources to use: checked sources take priority, else selected
+  let activeIds = [...checkedIds].filter(id => sources[id] && sources[id].status === 'ready');
+
+  // Fall back to selectedId if nothing is checked
+  if (!activeIds.length) {
+    if (!selectedId) { toast('Select or check a source first', 'error'); return; }
+    const s = sources[selectedId];
+    if (!s) { toast('Source not found', 'error'); return; }
+    if (s.status === 'pending' || s.status === 'processing') {
+      toast('Source is still processing, please wait…', 'error'); return;
+    }
+    if (s.status === 'error') {
+      toast('Source has errors, please remove and re-upload', 'error'); return;
+    }
+    activeIds = [selectedId];
   }
-  if (s.status === 'error') { 
-    toast('Source has errors, please remove and re-upload', 'error'); 
-    return; 
+
+  // Warn if some checked sources are not ready
+  const notReady = [...checkedIds].filter(id => sources[id] && sources[id].status !== 'ready');
+  if (notReady.length) {
+    toast(`${notReady.length} checked source(s) still processing — using ${activeIds.length} ready source(s)`, 'info');
   }
+
+  const displayName = activeIds.length === 1
+    ? (sources[activeIds[0]]?.name || 'source')
+    : `${activeIds.length} sources`;
 
   const card = document.querySelector(`[data-gen="${type}"]`);
   card.classList.add('loading');
@@ -1246,14 +1278,24 @@ async function generate(type) {
   switchTab('generate');
 
   try {
-    const r = await fetch(`/api/sources/${id}/generate/${type}`, { method: 'POST' });
-    const data = await r.json();
-    if (!r.ok) { 
-      throw new Error(data.detail || data.message || 'Generation failed'); 
+    let r, data;
+    if (activeIds.length === 1) {
+      // Single-source: use original per-source endpoint
+      r = await fetch(`/api/sources/${activeIds[0]}/generate/${type}`, { method: 'POST' });
+    } else {
+      // Multi-source: use merged endpoint
+      r = await fetch(`/api/generate/${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_ids: activeIds }),
+      });
+    }
+    data = await r.json();
+    if (!r.ok) {
+      throw new Error(data.detail || data.message || 'Generation failed');
     }
 
-    sources[id] = { ...sources[id] };
-    renderResult(type, data, s.name);
+    renderResult(type, data, displayName);
     toast(`${capitalize(type)} generated!`, 'success');
   } catch(err) {
     toast(`Failed: ${err.message}`, 'error');
@@ -1307,7 +1349,8 @@ function renderResult(type, data, sourceName) {
       </div>`;
   } else {
     // Markdown content
-    body = `<div class="md-content">${mdToHtml(data.content)}</div>
+    const mdContent = data.content || '*(No content returned)*';
+    body = `<div class="md-content">${mdToHtml(mdContent)}</div>
       <div style="margin-top:12px;text-align:right">
         <button class="btn btn-ghost btn-sm" onclick="copyToNotes(this)">📝 Copy to Notes</button>
       </div>`;

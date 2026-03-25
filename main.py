@@ -186,11 +186,28 @@ def gen_presentation(source: dict, out: Path) -> None:
         blank = prs.slide_layouts[6]  # completely blank
         return prs.slides.add_slide(blank)
 
+    # Named color → hex map for convenience
+    _NAMED_COLORS = {
+        "white": "#FFFFFF",
+        "black": "#000000",
+        "red":   "#FF0000",
+        "green": "#00FF00",
+        "blue":  "#0000FF",
+    }
+
+    def _parse_color(color: str):
+        """Return (r, g, b) tuple from a hex color string or CSS named color."""
+        c = _NAMED_COLORS.get(str(color).lower(), color)
+        c = c.lstrip('#')
+        if len(c) == 3:
+            c = c[0]*2 + c[1]*2 + c[2]*2
+        return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+
     def _bg(slide, color: str):
         bg = slide.background
         fill = bg.fill
         fill.solid()
-        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+        r, g, b = _parse_color(color)
         fill.fore_color.rgb = RGBColor(r, g, b)
 
     def _txt(slide, text, left, top, width, height,
@@ -205,14 +222,14 @@ def gen_presentation(source: dict, out: Path) -> None:
         p.text = text
         p.font.bold = bold
         p.font.size = Pt(size)
-        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+        r, g, b = _parse_color(color)
         p.font.color.rgb = RGBColor(r, g, b)
         p.alignment = {"LEFT": PP_ALIGN.LEFT, "CENTER": PP_ALIGN.CENTER,
                        "RIGHT": PP_ALIGN.RIGHT}.get(align, PP_ALIGN.LEFT)
         return box
 
     def _rect(slide, left, top, width, height, color):
-        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+        r, g, b = _parse_color(color)
         shape = slide.shapes.add_shape(
             1,  # MSO_SHAPE_TYPE.RECTANGLE
             Inches(left), Inches(top), Inches(width), Inches(height)
@@ -448,8 +465,9 @@ def gen_infographic(source: dict, out: Path) -> None:
                  color=_MUTED, fontsize=11)
         ax5.text(0.95, y, val, transform=ax5.transAxes,
                  color="white", fontsize=12, fontweight="bold", ha="right")
-        ax5.axhline(y=y - 0.04, xmin=0.05, xmax=0.95,
-                    color="#334155", linewidth=0.5, transform=ax5.transAxes)
+        ax5.plot([0.05, 0.95], [y - 0.04, y - 0.04],
+                 color="#334155", linewidth=0.5, transform=ax5.transAxes,
+                 clip_on=False)
 
     plt.savefig(str(out), dpi=150, bbox_inches="tight",
                 facecolor=_DARK, edgecolor="none")
@@ -764,6 +782,81 @@ def _require_ready(sid: str) -> dict:
         raise HTTPException(400, f"Source status is '{s.get('status')}', not ready")
     return s
 
+
+def _merge_sources(sids: list[str]) -> dict:
+    """Merge multiple ready sources into a single virtual source dict for generation."""
+    sources_list = []
+    for sid in sids:
+        s = sources_db.get(sid)
+        if s and s.get("status") == "ready":
+            sources_list.append(s)
+    if not sources_list:
+        raise HTTPException(400, "No ready sources found for the given IDs")
+    if len(sources_list) == 1:
+        return sources_list[0]
+
+    # Merge content and analysis from all sources
+    combined_name = " + ".join(s.get("name", "Untitled") for s in sources_list[:3])
+    if len(sources_list) > 3:
+        combined_name += f" (+{len(sources_list)-3} more)"
+
+    combined_content = "\n\n".join(
+        f"=== {s.get('name', 'Source')} ===\n{s.get('content','')[:8000]}"
+        for s in sources_list
+    )
+
+    # Merge analysis fields
+    merged_analysis: dict = {
+        "summary": " | ".join(
+            filter(None, ((s.get("analysis", {}) or {}).get("summary", "") for s in sources_list))
+        )[:2000],
+        "key_points": [],
+        "topics": [],
+        "notable_quotes": [],
+        "entities": {"people": [], "organizations": [], "places": [], "dates": []},
+        "sentiment": "mixed",
+        "complexity": "intermediate",
+        "word_count": sum((s.get("analysis", {}) or {}).get("word_count", 0) for s in sources_list),
+        "language": "English",
+    }
+    for s in sources_list:
+        a = s.get("analysis", {}) or {}
+        merged_analysis["key_points"].extend(a.get("key_points", []))
+        merged_analysis["topics"].extend(a.get("topics", []))
+        merged_analysis["notable_quotes"].extend(a.get("notable_quotes", []))
+        for field in ("people", "organizations", "places", "dates"):
+            merged_analysis["entities"][field].extend(
+                (a.get("entities") or {}).get(field, [])
+            )
+    # Deduplicate
+    for field in ("key_points", "notable_quotes"):
+        seen: set = set()
+        deduped = []
+        for item in merged_analysis[field]:
+            key = item[:60] if item else ""
+            if key not in seen:
+                seen.add(key)
+                deduped.append(item)
+        merged_analysis[field] = deduped[:20]
+    merged_analysis["topics"] = merged_analysis["topics"][:12]
+    for field in ("people", "organizations", "places", "dates"):
+        seen = set()
+        deduped = []
+        for item in merged_analysis["entities"][field]:
+            if item not in seen:
+                seen.add(item)
+                deduped.append(item)
+        merged_analysis["entities"][field] = deduped[:15]
+
+    return {
+        "id": "merged_" + "_".join(sids[:3]),
+        "name": combined_name,
+        "type": "merged",
+        "status": "ready",
+        "content": combined_content,
+        "analysis": merged_analysis,
+    }
+
 @app.post("/api/sources/{sid}/generate/presentation")
 async def gen_pptx_ep(sid: str):
     try:
@@ -888,6 +981,73 @@ async def gen_glossary_ep(sid: str):
         raise
     except Exception as e:
         raise HTTPException(500, f"Failed to generate glossary: {str(e)}")
+
+# ── Multi-source generate endpoint ───────────────────────────────────────────
+
+@app.post("/api/generate/{gen_type}")
+async def multi_generate_ep(gen_type: str, payload: dict):
+    """Generate content from one or more sources identified by source_ids list."""
+    try:
+        source_ids = payload.get("source_ids", [])
+        if not source_ids:
+            raise HTTPException(400, "No source_ids provided")
+
+        # Merge sources (or use single source if only one)
+        merged = _merge_sources(source_ids)
+        key = "_".join(sorted(source_ids))[:40]
+
+        if gen_type == "presentation":
+            out = OUTPUTS / f"{key}_presentation.pptx"
+            await asyncio.get_event_loop().run_in_executor(None, gen_presentation, merged, out)
+            url = f"/outputs/{key}_presentation.pptx"
+            return {"url": url}
+
+        elif gen_type == "audio":
+            out = OUTPUTS / f"{key}_audio.mp3"
+            await asyncio.get_event_loop().run_in_executor(None, gen_audio, merged, out)
+            url = f"/outputs/{key}_audio.mp3"
+            return {"url": url}
+
+        elif gen_type == "infographic":
+            out = OUTPUTS / f"{key}_infographic.png"
+            await asyncio.get_event_loop().run_in_executor(None, gen_infographic, merged, out)
+            url = f"/outputs/{key}_infographic.png"
+            return {"url": url}
+
+        elif gen_type == "mindmap":
+            out = OUTPUTS / f"{key}_mindmap.png"
+            await asyncio.get_event_loop().run_in_executor(None, gen_mindmap, merged, out)
+            url = f"/outputs/{key}_mindmap.png"
+            return {"url": url}
+
+        elif gen_type == "studyguide":
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_study_guide, merged)
+            return {"content": text}
+
+        elif gen_type == "faq":
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_faq, merged)
+            return {"content": text}
+
+        elif gen_type == "briefing":
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_briefing, merged)
+            return {"content": text}
+
+        elif gen_type == "timeline":
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_timeline, merged)
+            return {"content": text}
+
+        elif gen_type == "glossary":
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_glossary, merged)
+            return {"content": text}
+
+        else:
+            raise HTTPException(400, f"Unknown generation type: {gen_type}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate {gen_type}: {str(e)}")
+
 
 # ── Chat ──────────────────────────────────────────────────────────────────────
 
