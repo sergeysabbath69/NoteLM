@@ -704,24 +704,37 @@ async def upload(
     url: Optional[str] = Form(None),
 ):
     sid = uuid.uuid4().hex[:10]
-    if file and file.filename:
-        safe = Path(file.filename).name
-        fp   = UPLOADS / f"{sid}_{safe}"
-        fp.write_bytes(await file.read())
-        sources_db[sid] = dict(id=sid, name=safe, type="file",
-                               file_path=str(fp), status="pending",
-                               created_at=datetime.now().isoformat())
-        _save(sources_db)
-        background_tasks.add_task(process_source, sid, fp, None)
-    elif url:
-        sources_db[sid] = dict(id=sid, name=url[:80], type="url",
-                               url=url, status="pending",
-                               created_at=datetime.now().isoformat())
-        _save(sources_db)
-        background_tasks.add_task(process_source, sid, None, url)
-    else:
-        raise HTTPException(400, "Provide a file or URL")
-    return {"id": sid, "status": "pending"}
+    try:
+        if file and file.filename:
+            safe = Path(file.filename).name
+            if not safe or safe.startswith('.'):
+                raise HTTPException(400, "Invalid filename")
+            fp = UPLOADS / f"{sid}_{safe}"
+            content = await file.read()
+            if len(content) > 50_000_000:
+                raise HTTPException(400, "File too large (max 50MB)")
+            fp.write_bytes(content)
+            sources_db[sid] = dict(id=sid, name=safe, type="file",
+                                   file_path=str(fp), status="pending",
+                                   created_at=datetime.now().isoformat())
+            _save(sources_db)
+            background_tasks.add_task(process_source, sid, fp, None)
+            return {"id": sid, "status": "pending", "name": safe}
+        elif url:
+            if not url.startswith(('http://', 'https://')):
+                raise HTTPException(400, "URL must start with http:// or https://")
+            sources_db[sid] = dict(id=sid, name=url[:80], type="url",
+                                   url=url, status="pending",
+                                   created_at=datetime.now().isoformat())
+            _save(sources_db)
+            background_tasks.add_task(process_source, sid, None, url)
+            return {"id": sid, "status": "pending", "name": url[:80]}
+        else:
+            raise HTTPException(400, "Provide a file or URL")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Upload failed: {str(e)}")
 
 @app.get("/api/sources/{sid}")
 async def get_source(sid: str):
@@ -753,121 +766,169 @@ def _require_ready(sid: str) -> dict:
 
 @app.post("/api/sources/{sid}/generate/presentation")
 async def gen_pptx_ep(sid: str):
-    s = _require_ready(sid)
-    out = OUTPUTS / f"{sid}_presentation.pptx"
-    await asyncio.get_event_loop().run_in_executor(None, gen_presentation, s, out)
-    url = f"/outputs/{sid}_presentation.pptx"
-    sources_db[sid]["pptx_url"] = url
-    _save(sources_db)
-    return {"url": url}
+    try:
+        s = _require_ready(sid)
+        out = OUTPUTS / f"{sid}_presentation.pptx"
+        await asyncio.get_event_loop().run_in_executor(None, gen_presentation, s, out)
+        url = f"/outputs/{sid}_presentation.pptx"
+        sources_db[sid]["pptx_url"] = url
+        _save(sources_db)
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate presentation: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/audio")
 async def gen_audio_ep(sid: str):
-    s = _require_ready(sid)
-    out = OUTPUTS / f"{sid}_audio.mp3"
-    await asyncio.get_event_loop().run_in_executor(None, gen_audio, s, out)
-    url = f"/outputs/{sid}_audio.mp3"
-    sources_db[sid]["audio_url"] = url
-    _save(sources_db)
-    return {"url": url}
+    try:
+        s = _require_ready(sid)
+        out = OUTPUTS / f"{sid}_audio.mp3"
+        await asyncio.get_event_loop().run_in_executor(None, gen_audio, s, out)
+        url = f"/outputs/{sid}_audio.mp3"
+        sources_db[sid]["audio_url"] = url
+        _save(sources_db)
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate audio: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/infographic")
 async def gen_infographic_ep(sid: str):
-    s = _require_ready(sid)
-    out = OUTPUTS / f"{sid}_infographic.png"
-    await asyncio.get_event_loop().run_in_executor(None, gen_infographic, s, out)
-    url = f"/outputs/{sid}_infographic.png"
-    sources_db[sid]["infographic_url"] = url
-    _save(sources_db)
-    return {"url": url}
+    try:
+        s = _require_ready(sid)
+        out = OUTPUTS / f"{sid}_infographic.png"
+        await asyncio.get_event_loop().run_in_executor(None, gen_infographic, s, out)
+        url = f"/outputs/{sid}_infographic.png"
+        sources_db[sid]["infographic_url"] = url
+        _save(sources_db)
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate infographic: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/mindmap")
 async def gen_mindmap_ep(sid: str):
-    s = _require_ready(sid)
-    out = OUTPUTS / f"{sid}_mindmap.png"
-    await asyncio.get_event_loop().run_in_executor(None, gen_mindmap, s, out)
-    url = f"/outputs/{sid}_mindmap.png"
-    sources_db[sid]["mindmap_url"] = url
-    _save(sources_db)
-    return {"url": url}
+    try:
+        s = _require_ready(sid)
+        out = OUTPUTS / f"{sid}_mindmap.png"
+        await asyncio.get_event_loop().run_in_executor(None, gen_mindmap, s, out)
+        url = f"/outputs/{sid}_mindmap.png"
+        sources_db[sid]["mindmap_url"] = url
+        _save(sources_db)
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate mindmap: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/studyguide")
 async def gen_study_ep(sid: str):
-    s = _require_ready(sid)
-    text = await asyncio.get_event_loop().run_in_executor(None, gen_study_guide, s)
-    sources_db[sid]["study_guide"] = text
-    _save(sources_db)
-    return {"content": text}
+    try:
+        s = _require_ready(sid)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_study_guide, s)
+        sources_db[sid]["study_guide"] = text
+        _save(sources_db)
+        return {"content": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate study guide: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/faq")
 async def gen_faq_ep(sid: str):
-    s = _require_ready(sid)
-    text = await asyncio.get_event_loop().run_in_executor(None, gen_faq, s)
-    sources_db[sid]["faq"] = text
-    _save(sources_db)
-    return {"content": text}
+    try:
+        s = _require_ready(sid)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_faq, s)
+        sources_db[sid]["faq"] = text
+        _save(sources_db)
+        return {"content": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate FAQ: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/briefing")
 async def gen_briefing_ep(sid: str):
-    s = _require_ready(sid)
-    text = await asyncio.get_event_loop().run_in_executor(None, gen_briefing, s)
-    sources_db[sid]["briefing"] = text
-    _save(sources_db)
-    return {"content": text}
+    try:
+        s = _require_ready(sid)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_briefing, s)
+        sources_db[sid]["briefing"] = text
+        _save(sources_db)
+        return {"content": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate briefing: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/timeline")
 async def gen_timeline_ep(sid: str):
-    s = _require_ready(sid)
-    text = await asyncio.get_event_loop().run_in_executor(None, gen_timeline, s)
-    sources_db[sid]["timeline"] = text
-    _save(sources_db)
-    return {"content": text}
+    try:
+        s = _require_ready(sid)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_timeline, s)
+        sources_db[sid]["timeline"] = text
+        _save(sources_db)
+        return {"content": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate timeline: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/glossary")
 async def gen_glossary_ep(sid: str):
-    s = _require_ready(sid)
-    text = await asyncio.get_event_loop().run_in_executor(None, gen_glossary, s)
-    sources_db[sid]["glossary"] = text
-    _save(sources_db)
-    return {"content": text}
+    try:
+        s = _require_ready(sid)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_glossary, s)
+        sources_db[sid]["glossary"] = text
+        _save(sources_db)
+        return {"content": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate glossary: {str(e)}")
 
 # ── Chat ──────────────────────────────────────────────────────────────────────
 
 @app.post("/api/chat")
 async def chat(payload: dict):
-    question    = payload.get("question", "").strip()
-    source_ids  = payload.get("source_ids", [])
-    chat_history = payload.get("history", [])
+    try:
+        question    = payload.get("question", "").strip()
+        source_ids  = payload.get("source_ids", [])
+        chat_history = payload.get("history", [])
 
-    if not question:
-        raise HTTPException(400, "No question provided")
+        if not question:
+            raise HTTPException(400, "No question provided")
 
-    context_parts = []
-    for sid in source_ids:
-        s = sources_db.get(sid)
-        if not s:
-            continue
-        content = s.get("content", "")
-        a = s.get("analysis", {}) or {}
-        part = f"=== SOURCE: {s['name']} ===\n"
-        if content:
-            part += content[:10000]
+        context_parts = []
+        for sid in source_ids:
+            s = sources_db.get(sid)
+            if not s:
+                continue
+            if s.get("status") != "ready":
+                continue
+            content = s.get("content", "")
+            a = s.get("analysis", {}) or {}
+            part = f"=== SOURCE: {s['name']} ===\n"
+            if content:
+                part += content[:10000]
+            else:
+                part += f"Summary: {a.get('summary','')}\n"
+                part += "Key points: " + "; ".join(a.get("key_points", [])) + "\n"
+            context_parts.append(part)
+
+        history_text = ""
+        for msg in chat_history[-6:]:
+            role = msg.get("role", "user")
+            history_text += f"\n{role.upper()}: {msg.get('content','')}"
+
+        if not context_parts:
+            system = "You are NoteLM, a helpful AI research assistant. Answer based on general knowledge if no sources are provided."
+            prompt = f"{system}\n{history_text}\nUSER: {question}\nASSISTANT:"
         else:
-            part += f"Summary: {a.get('summary','')}\n"
-            part += "Key points: " + "; ".join(a.get("key_points", [])) + "\n"
-        context_parts.append(part)
-
-    history_text = ""
-    for msg in chat_history[-6:]:
-        role = msg.get("role", "user")
-        history_text += f"\n{role.upper()}: {msg.get('content','')}"
-
-    if not context_parts:
-        system = "You are NoteLM, a helpful AI research assistant. Answer based on general knowledge if no sources are provided."
-        prompt = f"{system}\n{history_text}\nUSER: {question}\nASSISTANT:"
-    else:
-        context = "\n\n".join(context_parts)
-        prompt = f"""You are NoteLM, an expert research assistant. Answer questions based on the provided sources.
+            context = "\n\n".join(context_parts)
+            prompt = f"""You are NoteLM, an expert research assistant. Answer questions based on the provided sources.
 Be precise, cite sources by name, and be thorough. If the answer is not in the sources, say so.
 
 SOURCES:
@@ -878,12 +939,23 @@ CONVERSATION HISTORY:{history_text}
 USER: {question}
 ASSISTANT:"""
 
-    resp = await asyncio.get_event_loop().run_in_executor(None, _gemini, prompt)
-    return {"answer": resp}
+        resp = await asyncio.get_event_loop().run_in_executor(None, _gemini, prompt)
+        return {"answer": resp}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Chat error: {str(e)}")
 
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "version": "2.0.0", "sources": len(sources_db)}
+
+@app.on_event("startup")
+async def startup_event():
+    for sid, s in sources_db.items():
+        if s.get("status") == "pending":
+            s["status"] = "processing"
+            _save(sources_db)
 
 if __name__ == "__main__":
     import uvicorn

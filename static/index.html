@@ -680,7 +680,7 @@ header {
 
       <!-- URL row -->
       <div class="url-row">
-        <input type="url" id="urlInput" placeholder="Paste a URL…">
+        <input type="url" id="urlInput" placeholder="Paste a URL…" onkeydown="if(event.key==='Enter')addUrl()">
         <button class="btn btn-primary btn-sm" onclick="addUrl()">Add</button>
       </div>
     </div>
@@ -892,9 +892,18 @@ async function checkHealth() {
 
 async function fetchSources() {
   const res = await fetch('/api/sources');
+  if (!res.ok) {
+    toast('Failed to fetch sources', 'error');
+    return;
+  }
   const list = await res.json();
   sources = {};
-  list.forEach(s => sources[s.id] = s);
+  list.forEach(s => {
+    sources[s.id] = s;
+    if (s.status === 'pending' || s.status === 'processing') {
+      pollStatus(s.id);
+    }
+  });
   renderSidebar();
   if (selectedId && sources[selectedId]) renderOverview(sources[selectedId]);
   updateChatContext();
@@ -1221,7 +1230,15 @@ async function generate(type) {
   const id = selectedId;
   if (!id) { toast('Select a source first', 'error'); return; }
   const s = sources[id];
-  if (!s || s.status !== 'ready') { toast('Source is not ready', 'error'); return; }
+  if (!s) { toast('Source not found', 'error'); return; }
+  if (s.status === 'pending' || s.status === 'processing') { 
+    toast('Source is still processing, please wait…', 'error'); 
+    return; 
+  }
+  if (s.status === 'error') { 
+    toast('Source has errors, please remove and re-upload', 'error'); 
+    return; 
+  }
 
   const card = document.querySelector(`[data-gen="${type}"]`);
   card.classList.add('loading');
@@ -1230,10 +1247,12 @@ async function generate(type) {
 
   try {
     const r = await fetch(`/api/sources/${id}/generate/${type}`, { method: 'POST' });
-    if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
     const data = await r.json();
+    if (!r.ok) { 
+      throw new Error(data.detail || data.message || 'Generation failed'); 
+    }
 
-    sources[id] = { ...sources[id] };  // shallow copy to trigger re-render
+    sources[id] = { ...sources[id] };
     renderResult(type, data, s.name);
     toast(`${capitalize(type)} generated!`, 'success');
   } catch(err) {
@@ -1326,6 +1345,16 @@ async function sendChat() {
   const q = input.value.trim();
   if (!q) return;
 
+  const readySources = [...checkedIds].filter(id => {
+    const s = sources[id];
+    return s && s.status === 'ready';
+  });
+
+  if (!readySources.length && checkedIds.size > 0) {
+    toast('Selected sources are still processing', 'error');
+    return;
+  }
+
   input.value = '';
   input.style.height = '';
   document.getElementById('sendBtn').disabled = true;
@@ -1346,10 +1375,14 @@ async function sendChat() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         question:   q,
-        source_ids: [...checkedIds],
+        source_ids: readySources,
         history:    chatHistory.slice(-8),
       }),
     });
+    if (!r.ok) {
+      const data = await r.json();
+      throw new Error(data.detail || 'Chat request failed');
+    }
     const data = await r.json();
     typingEl.remove();
 
@@ -1359,6 +1392,7 @@ async function sendChat() {
   } catch(err) {
     typingEl.remove();
     addMessage('ai', `Error: ${err.message}`);
+    toast(`Chat error: ${err.message}`, 'error');
   } finally {
     document.getElementById('sendBtn').disabled = false;
     input.focus();
