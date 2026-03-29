@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" id="html-root">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -484,6 +484,7 @@ header {
     </div>
     <div class="header-actions">
       <button class="btn-icon" title="Refresh sources" onclick="loadSources()">↻</button>
+      <button class="btn-icon" id="btn-lang" onclick="toggleLang()" style="font-size:12px;font-weight:700;width:40px">EN</button>
     </div>
   </header>
 
@@ -500,15 +501,15 @@ header {
         </div>
       </div>
       <div class="panel-body" id="sources-body">
-        <button class="btn-add-source" onclick="openAddModal()">
-          ＋ Add source
+        <button class="btn-add-source" id="btn-add-source" onclick="openAddModal()">
+          ＋ <span id="lbl-add-source">Add source</span>
         </button>
 
         <div id="sources-list">
           <div class="empty-sources">
             <div class="emoji">📂</div>
-            <div>No sources yet</div>
-            <div style="font-size:11px;margin-top:4px">Upload files or paste a URL</div>
+            <div id="lbl-no-sources">No sources yet</div>
+            <div style="font-size:11px;margin-top:4px" id="lbl-upload-hint">Upload files or paste a URL</div>
           </div>
         </div>
 
@@ -542,7 +543,7 @@ header {
 
       <div class="chat-input-area">
         <div class="chat-input-wrap">
-          <textarea id="chat-input" rows="1" placeholder="Ask about your sources…" maxlength="4000"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Ask about your sources…" maxlength="4000" data-i18n-placeholder="typeQuestion"></textarea>
           <button class="btn-send" id="btn-send" onclick="sendMessage()" title="Send (Enter)">↑</button>
         </div>
         <div class="chat-hint">Enter to send · Shift+Enter for new line</div>
@@ -562,10 +563,10 @@ header {
 
         <!-- Audio Overview -->
         <div class="studio-section" id="section-audio">
-          <div class="studio-btn-row" onclick="studioGenerate('audio')">
+          <div class="studio-btn-row" id="sbr-audio" onclick="studioGenerate('audio')">
             <div class="sbr-left">
               <span class="sbr-icon">🎙️</span>
-              <span class="sbr-label">Audio Overview</span>
+              <span class="sbr-label" data-i18n="audioOverview">Audio Overview</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -576,10 +577,10 @@ header {
 
         <!-- Mind Map -->
         <div class="studio-section" id="section-mindmap">
-          <div class="studio-btn-row" onclick="studioGenerate('mindmap')">
+          <div class="studio-btn-row" id="sbr-mindmap" onclick="studioGenerate('mindmap')">
             <div class="sbr-left">
               <span class="sbr-icon">🗺️</span>
-              <span class="sbr-label">Mind Map</span>
+              <span class="sbr-label" data-i18n="mindMap">Mind Map</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -590,10 +591,10 @@ header {
 
         <!-- Infographic -->
         <div class="studio-section" id="section-infographic">
-          <div class="studio-btn-row" onclick="studioGenerate('infographic')">
+          <div class="studio-btn-row" id="sbr-infographic" onclick="studioGenerate('infographic')">
             <div class="sbr-left">
               <span class="sbr-icon">📊</span>
-              <span class="sbr-label">Infographic</span>
+              <span class="sbr-label" data-i18n="infographic">Infographic</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -604,10 +605,10 @@ header {
 
         <!-- Presentation -->
         <div class="studio-section" id="section-presentation">
-          <div class="studio-btn-row" onclick="studioGenerate('presentation')">
+          <div class="studio-btn-row" id="sbr-presentation" onclick="studioGenerate('presentation')">
             <div class="sbr-left">
               <span class="sbr-icon">📽️</span>
-              <span class="sbr-label">Presentation</span>
+              <span class="sbr-label" data-i18n="presentation">Presentation</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -620,10 +621,10 @@ header {
 
         <!-- Study Guide -->
         <div class="studio-section" id="section-studyguide">
-          <div class="studio-btn-row" onclick="studioGenerate('studyguide')">
+          <div class="studio-btn-row" id="sbr-studyguide" onclick="studioGenerate('studyguide')">
             <div class="sbr-left">
               <span class="sbr-icon">📑</span>
-              <span class="sbr-label">Study Guide</span>
+              <span class="sbr-label" data-i18n="studyGuide">Study Guide</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -634,10 +635,10 @@ header {
 
         <!-- FAQ -->
         <div class="studio-section" id="section-faq">
-          <div class="studio-btn-row" onclick="studioGenerate('faq')">
+          <div class="studio-btn-row" id="sbr-faq" onclick="studioGenerate('faq')">
             <div class="sbr-left">
               <span class="sbr-icon">❓</span>
-              <span class="sbr-label">FAQ</span>
+              <span class="sbr-label" data-i18n="faq">FAQ</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -648,10 +649,10 @@ header {
 
         <!-- Briefing Doc -->
         <div class="studio-section" id="section-briefing">
-          <div class="studio-btn-row" onclick="studioGenerate('briefing')">
+          <div class="studio-btn-row" id="sbr-briefing" onclick="studioGenerate('briefing')">
             <div class="sbr-left">
               <span class="sbr-icon">📋</span>
-              <span class="sbr-label">Briefing Doc</span>
+              <span class="sbr-label" data-i18n="briefingDoc">Briefing Doc</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -662,10 +663,10 @@ header {
 
         <!-- Timeline -->
         <div class="studio-section" id="section-timeline">
-          <div class="studio-btn-row" onclick="studioGenerate('timeline')">
+          <div class="studio-btn-row" id="sbr-timeline" onclick="studioGenerate('timeline')">
             <div class="sbr-left">
               <span class="sbr-icon">⏱️</span>
-              <span class="sbr-label">Timeline</span>
+              <span class="sbr-label" data-i18n="timeline">Timeline</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -676,10 +677,10 @@ header {
 
         <!-- Glossary -->
         <div class="studio-section" id="section-glossary">
-          <div class="studio-btn-row" onclick="studioGenerate('glossary')">
+          <div class="studio-btn-row" id="sbr-glossary" onclick="studioGenerate('glossary')">
             <div class="sbr-left">
               <span class="sbr-icon">📝</span>
-              <span class="sbr-label">Glossary</span>
+              <span class="sbr-label" data-i18n="glossary">Glossary</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -690,10 +691,10 @@ header {
 
         <!-- Flashcards -->
         <div class="studio-section" id="section-flashcards">
-          <div class="studio-btn-row" onclick="studioGenerate('flashcards')">
+          <div class="studio-btn-row" id="sbr-flashcards" onclick="studioGenerate('flashcards')">
             <div class="sbr-left">
               <span class="sbr-icon">🃏</span>
-              <span class="sbr-label">Flashcards</span>
+              <span class="sbr-label" data-i18n="flashcards">Flashcards</span>
             </div>
             <span class="sbr-arrow">▾</span>
           </div>
@@ -711,7 +712,7 @@ header {
 <div class="modal-overlay" id="add-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeAddModal()">✕</button>
-    <h2>Add source</h2>
+    <h2 id="modal-title">Add source</h2>
     <div class="modal-tabs">
       <button class="modal-tab active" onclick="switchTab('upload')">📄 Upload file</button>
       <button class="modal-tab" onclick="switchTab('url')">🌐 Paste URL</button>
@@ -725,6 +726,7 @@ header {
       </div>
       <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" onchange="fileSelected(this)">
       <button class="btn-primary" style="margin-top:14px" id="btn-upload" onclick="uploadFile()" disabled>Upload file</button>
+      <!-- text set by i18n at init -->
     </div>
 
     <div class="modal-tab-content" id="tab-url">
@@ -746,21 +748,132 @@ header {
 <div id="toast-container"></div>
 
 <script>
+// ── i18n ───────────────────────────────────────────────────────
+const i18n = {
+  en: {
+    addSource:      'Add source',
+    noSources:      'No sources yet',
+    uploadHint:     'Upload files or paste a URL',
+    typeQuestion:   'Ask about your sources…',
+    generate:       'Generate',
+    generating:     'Generating…',
+    uploading:      'Uploading…',
+    adding:         'Adding…',
+    uploadFile:     'Upload file',
+    addUrl:         'Add URL',
+    dropLabel:      'Click to choose a file or drag & drop',
+    modalTitle:     'Add source',
+    audioOverview:  'Audio Overview',
+    mindMap:        'Mind Map',
+    studyGuide:     'Study Guide',
+    faq:            'FAQ',
+    briefingDoc:    'Briefing Doc',
+    timeline:       'Timeline',
+    glossary:       'Glossary',
+    presentation:   'Presentation',
+    infographic:    'Infographic',
+    flashcards:     'Flashcards',
+    sourceDeleted:  'Source deleted',
+    sourceAdded:    'Source added — processing…',
+    urlAdded:       'URL added — processing…',
+    selectSource:   'Select at least one source first',
+    waitProcessing: 'No ready sources selected — wait for processing to finish',
+  },
+  ru: {
+    addSource:      'Добавить источник',
+    noSources:      'Нет источников',
+    uploadHint:     'Загрузите файлы или вставьте URL',
+    typeQuestion:   'Спросите об источниках…',
+    generate:       'Создать',
+    generating:     'Создаётся…',
+    uploading:      'Загрузка…',
+    adding:         'Добавление…',
+    uploadFile:     'Загрузить файл',
+    addUrl:         'Добавить URL',
+    dropLabel:      'Нажмите или перетащите файл',
+    modalTitle:     'Добавить источник',
+    audioOverview:  'Аудио-обзор',
+    mindMap:        'Карта знаний',
+    studyGuide:     'Учебное пособие',
+    faq:            'Частые вопросы',
+    briefingDoc:    'Брифинг',
+    timeline:       'Хронология',
+    glossary:       'Глоссарий',
+    presentation:   'Презентация',
+    infographic:    'Инфографика',
+    flashcards:     'Карточки',
+    sourceDeleted:  'Источник удалён',
+    sourceAdded:    'Источник добавлен — обработка…',
+    urlAdded:       'URL добавлен — обработка…',
+    selectSource:   'Сначала выберите хотя бы один источник',
+    waitProcessing: 'Нет готовых источников — ожидайте завершения обработки',
+  }
+};
+
+let currentLang = localStorage.getItem('notelm_lang') || 'en';
+
+function t(key) {
+  return (i18n[currentLang] || i18n.en)[key] || key;
+}
+
+function applyLang() {
+  // Update html lang attribute
+  document.getElementById('html-root').lang = currentLang;
+  // Update lang toggle button
+  document.getElementById('btn-lang').textContent = currentLang.toUpperCase();
+  // Update all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // Update placeholders
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  // Update specific labeled elements
+  const lblAdd = document.getElementById('lbl-add-source');
+  if (lblAdd) lblAdd.textContent = t('addSource');
+  const lblNo = document.getElementById('lbl-no-sources');
+  if (lblNo) lblNo.textContent = t('noSources');
+  const lblHint = document.getElementById('lbl-upload-hint');
+  if (lblHint) lblHint.textContent = t('uploadHint');
+  const modalTitleEl = document.getElementById('modal-title');
+  if (modalTitleEl) modalTitleEl.textContent = t('modalTitle');
+  const btnUp = document.getElementById('btn-upload');
+  if (btnUp && !btnUp.dataset.busy) btnUp.textContent = t('uploadFile');
+  const btnUrl = document.getElementById('btn-url');
+  if (btnUrl && !btnUrl.dataset.busy) btnUrl.textContent = t('addUrl');
+  const dropLbl = document.getElementById('drop-label');
+  if (dropLbl && !dropLbl.dataset.file) dropLbl.textContent = t('dropLabel');
+  // Re-render sources to update status text
+  renderSources();
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('notelm_lang', lang);
+  applyLang();
+}
+
+function toggleLang() {
+  setLang(currentLang === 'en' ? 'ru' : 'en');
+}
+
 // ── State ──────────────────────────────────────────────────────
 const state = {
-  sources: [],       // array of source objects
-  activeSids: new Set(), // checked source IDs
-  chatHistory: [],   // [{role, content}]
-  generatingStudio: new Set(), // generating types
+  sources: [],
+  activeSids: new Set(),
+  chatHistory: [],
+  generatingStudio: new Set(),
+  pollingIds: new Set(), // source IDs currently being polled
 };
 
 // ── Toast ──────────────────────────────────────────────────────
 function toast(msg, type = 'info', duration = 3000) {
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.textContent = msg;
-  document.getElementById('toast-container').appendChild(t);
-  setTimeout(() => t.remove(), duration);
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), duration);
 }
 
 // ── Source helpers ─────────────────────────────────────────────
@@ -779,23 +892,61 @@ function fmtChars(n) {
   return `${n} chars`;
 }
 
+// ── Per-source polling ─────────────────────────────────────────
+function startPolling(sid) {
+  if (state.pollingIds.has(sid)) return; // already polling
+  state.pollingIds.add(sid);
+  _pollSource(sid);
+}
+
+async function _pollSource(sid) {
+  if (!state.pollingIds.has(sid)) return;
+  try {
+    const res = await fetch(`/api/sources/${sid}`);
+    if (!res.ok) { state.pollingIds.delete(sid); return; }
+    const src = await res.json();
+    // Update source in state
+    const idx = state.sources.findIndex(s => s.id === sid);
+    if (idx !== -1) {
+      state.sources[idx] = src;
+    } else {
+      state.sources.push(src);
+    }
+    if (src.status === 'ready') {
+      state.activeSids.add(sid); // auto-check when ready
+      state.pollingIds.delete(sid);
+      renderSources();
+      updateHeaderCount();
+    } else if (src.status === 'error') {
+      state.pollingIds.delete(sid);
+      renderSources();
+    } else {
+      // still processing/pending — poll again in 2s
+      renderSources();
+      setTimeout(() => _pollSource(sid), 2000);
+    }
+  } catch(e) {
+    state.pollingIds.delete(sid);
+  }
+}
+
 // ── Load Sources ───────────────────────────────────────────────
 async function loadSources() {
   try {
     const res = await fetch('/api/sources');
     state.sources = await res.json();
-    renderSources();
-    // auto-check all ready sources that aren't already in activeSids
+    // auto-check all ready sources
     state.sources.forEach(s => {
       if (s.status === 'ready' && !state.activeSids.has(s.id)) {
         state.activeSids.add(s.id);
       }
+      // start polling for pending/processing sources not already being polled
+      if ((s.status === 'processing' || s.status === 'pending') && !state.pollingIds.has(s.id)) {
+        startPolling(s.id);
+      }
     });
-    renderSources(); // re-render with checks
+    renderSources();
     updateHeaderCount();
-    // poll for processing sources
-    const processing = state.sources.some(s => s.status === 'processing' || s.status === 'pending');
-    if (processing) setTimeout(loadSources, 2500);
   } catch(e) {
     console.error('Failed to load sources', e);
   }
@@ -804,10 +955,13 @@ async function loadSources() {
 function renderSources() {
   const el = document.getElementById('sources-list');
   if (!state.sources.length) {
-    el.innerHTML = `<div class="empty-sources"><div class="emoji">📂</div><div>No sources yet</div><div style="font-size:11px;margin-top:4px">Upload files or paste a URL</div></div>`;
+    el.innerHTML = `<div class="empty-sources"><div class="emoji">📂</div><div>${t('noSources')}</div><div style="font-size:11px;margin-top:4px">${t('uploadHint')}</div></div>`;
     return;
   }
-  el.innerHTML = state.sources.map(src => `
+  el.innerHTML = state.sources.map(src => {
+    const isPolling = state.pollingIds.has(src.id);
+    const spinner = isPolling ? `<span class="studio-spinner" style="width:10px;height:10px;margin-left:4px"></span>` : '';
+    return `
     <div class="source-item ${state.activeSids.has(src.id) ? 'selected' : ''}" data-id="${src.id}">
       <input type="checkbox" class="source-check" ${state.activeSids.has(src.id) ? 'checked' : ''}
         onchange="toggleSource('${src.id}', this.checked)" onclick="event.stopPropagation()">
@@ -817,12 +971,13 @@ function renderSources() {
         <div class="source-meta">
           <span class="status-dot ${src.status}"></span>
           <span>${src.status}</span>
+          ${spinner}
           ${src.analysis ? `<span>${fmtChars(src.analysis.word_count ? src.analysis.word_count * 5 : 0)}</span>` : ''}
         </div>
       </div>
       <button class="source-delete" title="Delete" onclick="deleteSource('${src.id}', event)">×</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function escHtml(s) {
@@ -846,10 +1001,11 @@ function selectAllSources(val) {
 async function deleteSource(sid, e) {
   e.stopPropagation();
   if (!confirm('Delete this source?')) return;
+  state.pollingIds.delete(sid); // stop any active poll
   await fetch(`/api/sources/${sid}`, { method: 'DELETE' });
   state.activeSids.delete(sid);
   await loadSources();
-  toast('Source deleted', 'success');
+  toast(t('sourceDeleted'), 'success');
 }
 
 function updateHeaderCount() {
@@ -869,18 +1025,26 @@ function closeAddModal() {
   document.getElementById('add-modal').classList.remove('open');
   selectedFile = null;
   document.getElementById('file-input').value = '';
-  document.getElementById('drop-label').textContent = 'Click to choose a file or drag & drop';
-  document.getElementById('btn-upload').disabled = true;
+  const dropLbl = document.getElementById('drop-label');
+  dropLbl.textContent = t('dropLabel');
+  delete dropLbl.dataset.file;
+  const btnUp = document.getElementById('btn-upload');
+  btnUp.disabled = true;
+  btnUp.textContent = t('uploadFile');
+  delete btnUp.dataset.busy;
   document.getElementById('url-input').value = '';
-  document.getElementById('btn-url').disabled = true;
+  const btnUrl = document.getElementById('btn-url');
+  btnUrl.disabled = true;
+  btnUrl.textContent = t('addUrl');
+  delete btnUrl.dataset.busy;
 }
 document.getElementById('add-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('add-modal')) closeAddModal();
 });
 
 function switchTab(tab) {
-  document.querySelectorAll('.modal-tab').forEach((t, i) => {
-    t.classList.toggle('active', (tab === 'upload' ? 0 : 1) === i);
+  document.querySelectorAll('.modal-tab').forEach((el, i) => {
+    el.classList.toggle('active', (tab === 'upload' ? 0 : 1) === i);
   });
   document.getElementById('tab-upload').classList.toggle('active', tab === 'upload');
   document.getElementById('tab-url').classList.toggle('active', tab === 'url');
@@ -889,7 +1053,9 @@ function switchTab(tab) {
 function fileSelected(input) {
   if (input.files[0]) {
     selectedFile = input.files[0];
-    document.getElementById('drop-label').textContent = selectedFile.name;
+    const dropLbl = document.getElementById('drop-label');
+    dropLbl.textContent = selectedFile.name;
+    dropLbl.dataset.file = '1';
     document.getElementById('btn-upload').disabled = false;
   }
 }
@@ -902,20 +1068,25 @@ function validateUrl() {
 async function uploadFile() {
   if (!selectedFile) return;
   const btn = document.getElementById('btn-upload');
-  btn.disabled = true; btn.textContent = 'Uploading…';
+  btn.disabled = true;
+  btn.textContent = t('uploading');
+  btn.dataset.busy = '1';
   const fd = new FormData();
   fd.append('file', selectedFile);
   try {
     const res = await fetch('/api/sources/upload', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Upload failed');
-    closeAddModal();
+    closeAddModal(); // resets button state
     await loadSources();
-    toast('Source added — processing…', 'success');
-    setTimeout(loadSources, 2000);
+    toast(t('sourceAdded'), 'success');
+    // start polling the new source for status=ready
+    if (data.id) startPolling(data.id);
   } catch(e) {
     toast(e.message, 'error');
-    btn.disabled = false; btn.textContent = 'Upload file';
+    btn.disabled = false;
+    btn.textContent = t('uploadFile');
+    delete btn.dataset.busy;
   }
 }
 
@@ -923,20 +1094,25 @@ async function uploadUrl() {
   const url = document.getElementById('url-input').value.trim();
   if (!url) return;
   const btn = document.getElementById('btn-url');
-  btn.disabled = true; btn.textContent = 'Adding…';
+  btn.disabled = true;
+  btn.textContent = t('adding');
+  btn.dataset.busy = '1';
   const fd = new FormData();
   fd.append('url', url);
   try {
     const res = await fetch('/api/sources/upload', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Failed to add URL');
-    closeAddModal();
+    closeAddModal(); // resets button state
     await loadSources();
-    toast('URL added — processing…', 'success');
-    setTimeout(loadSources, 2000);
+    toast(t('urlAdded'), 'success');
+    // start polling the new source for status=ready
+    if (data.id) startPolling(data.id);
   } catch(e) {
     toast(e.message, 'error');
-    btn.disabled = false; btn.textContent = 'Add URL';
+    btn.disabled = false;
+    btn.textContent = t('addUrl');
+    delete btn.dataset.busy;
   }
 }
 
@@ -950,10 +1126,20 @@ dropZone.addEventListener('drop', async e => {
   if (files.length) {
     const fd = new FormData();
     fd.append('file', files[0]);
-    toast('Uploading…', 'info');
-    const res = await fetch('/api/sources/upload', { method: 'POST', body: fd });
-    if (res.ok) { await loadSources(); toast('Source added', 'success'); }
-    else toast('Upload failed', 'error');
+    toast(t('uploading'), 'info');
+    try {
+      const res = await fetch('/api/sources/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        await loadSources();
+        toast(t('sourceAdded'), 'success');
+        if (data.id) startPolling(data.id);
+      } else {
+        toast(data.detail || 'Upload failed', 'error');
+      }
+    } catch(e) {
+      toast('Upload failed', 'error');
+    }
   }
 });
 
@@ -964,7 +1150,13 @@ fda.addEventListener('dragleave', () => fda.classList.remove('dragover'));
 fda.addEventListener('drop', e => {
   e.preventDefault(); fda.classList.remove('dragover');
   const f = e.dataTransfer.files[0];
-  if (f) { selectedFile = f; document.getElementById('drop-label').textContent = f.name; document.getElementById('btn-upload').disabled = false; }
+  if (f) {
+    selectedFile = f;
+    const dropLbl = document.getElementById('drop-label');
+    dropLbl.textContent = f.name;
+    dropLbl.dataset.file = '1';
+    document.getElementById('btn-upload').disabled = false;
+  }
 });
 
 // ── Chat ───────────────────────────────────────────────────────
@@ -1009,7 +1201,6 @@ async function sendMessage() {
   const q = chatInput.value.trim();
   if (!q) return;
 
-  // Hide welcome screen
   const welcome = document.getElementById('chat-welcome');
   if (welcome) welcome.remove();
 
@@ -1079,28 +1270,18 @@ function appendAiMsg(text) {
 // ── Simple Markdown renderer ───────────────────────────────────
 function renderMarkdown(md) {
   let s = escHtml(md);
-  // code blocks
   s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre style="background:var(--bg);padding:8px;border-radius:6px;overflow-x:auto;font-size:12px"><code>$1</code></pre>');
-  // inline code
   s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // bold
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  // italic
   s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  // headers
   s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-  // blockquote
   s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-  // hr
   s = s.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">');
-  // unordered list items
   s = s.replace(/^[\*\-] (.+)$/gm, '<li>$1</li>');
   s = s.replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
-  // ordered list items
   s = s.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-  // Tables (basic)
   s = s.replace(/(\|.+\|\n)+/g, m => {
     const rows = m.trim().split('\n').filter(r => !r.match(/^\|[\s\-|]+\|$/));
     const tableRows = rows.map((r, i) => {
@@ -1110,7 +1291,6 @@ function renderMarkdown(md) {
     }).join('');
     return `<table>${tableRows}</table>`;
   });
-  // paragraph / line breaks
   s = s.replace(/\n\n+/g, '</p><p>');
   s = s.replace(/\n/g, '<br>');
   s = '<p>' + s + '</p>';
@@ -1120,36 +1300,38 @@ function renderMarkdown(md) {
 
 // ── Studio ─────────────────────────────────────────────────────
 async function studioGenerate(type) {
-  if (state.generatingStudio.has(type)) return;
+  if (state.generatingStudio.has(type)) return; // prevent double-click
 
   const sids = Array.from(state.activeSids);
-  if (!sids.length) { toast('Select at least one source first', 'error'); return; }
+  if (!sids.length) { toast(t('selectSource'), 'error'); return; }
 
   const readySids = sids.filter(sid => {
     const s = state.sources.find(x => x.id === sid);
     return s && s.status === 'ready';
   });
-  if (!readySids.length) { toast('No ready sources selected — wait for processing to finish', 'error'); return; }
+  if (!readySids.length) { toast(t('waitProcessing'), 'error'); return; }
 
   state.generatingStudio.add(type);
-  const btnRow = document.querySelector(`#section-${type} .studio-btn-row`);
+
+  const btnRow = document.getElementById(`sbr-${type}`);
   const resultEl = document.getElementById(`result-${type}`);
   const contentEl = document.getElementById(`content-${type}`);
   const arrow = btnRow.querySelector('.sbr-arrow');
   const label = btnRow.querySelector('.sbr-label');
   const origLabel = label.textContent;
 
+  // Disable the button row to prevent re-clicks
+  btnRow.style.pointerEvents = 'none';
   btnRow.classList.add('loading');
-  label.innerHTML = `<span class="studio-spinner"></span> Generating…`;
+  label.innerHTML = `<span class="studio-spinner"></span> ${t('generating')}`;
   arrow.style.display = 'none';
   resultEl.classList.remove('visible');
 
   try {
-    let url, resData;
+    let resData;
     if (readySids.length === 1) {
       const sid = readySids[0];
-      const apiType = type === 'studyguide' ? 'studyguide' : type;
-      const res = await fetch(`/api/sources/${sid}/generate/${apiType}`, { method: 'POST' });
+      const res = await fetch(`/api/sources/${sid}/generate/${type}`, { method: 'POST' });
       resData = await res.json();
       if (!res.ok) throw new Error(resData.detail || 'Generation failed');
     } else {
@@ -1170,7 +1352,6 @@ async function studioGenerate(type) {
     } else if (type === 'presentation') {
       contentEl.innerHTML = `<p style="font-size:12px;color:var(--text2);margin-bottom:8px">Presentation ready!</p><a class="download-btn" href="${resData.url}" download>⬇️ Download PPTX</a>`;
     } else {
-      // markdown content
       contentEl.innerHTML = renderMarkdown(resData.content || '');
     }
 
@@ -1180,7 +1361,9 @@ async function studioGenerate(type) {
   } catch(e) {
     toast(e.message, 'error');
   } finally {
+    // Always re-enable and restore label
     state.generatingStudio.delete(type);
+    btnRow.style.pointerEvents = '';
     btnRow.classList.remove('loading');
     label.textContent = origLabel;
     arrow.style.display = '';
@@ -1203,6 +1386,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Init ───────────────────────────────────────────────────────
+applyLang();
 loadSources();
 </script>
 </body>
