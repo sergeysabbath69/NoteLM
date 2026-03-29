@@ -554,6 +554,7 @@ header {
     <div class="panel" id="panel-studio">
       <div class="panel-header">
         <span>Studio</span>
+        <button class="btn-icon" id="btn-gen-lang" onclick="toggleGenLang()" style="font-size:11px;font-weight:700;width:38px;height:24px;border-radius:4px">RU</button>
       </div>
       <div class="panel-body">
 
@@ -866,6 +867,18 @@ const state = {
   generatingStudio: new Set(),
   pollingIds: new Set(), // source IDs currently being polled
 };
+
+let genLang = localStorage.getItem('gen_lang') || 'ru';
+
+function applyGenLang() {
+  document.getElementById('btn-gen-lang').textContent = genLang.toUpperCase();
+}
+
+function toggleGenLang() {
+  genLang = genLang === 'ru' ? 'en' : 'ru';
+  localStorage.setItem('gen_lang', genLang);
+  applyGenLang();
+}
 
 // ── Toast ──────────────────────────────────────────────────────
 function toast(msg, type = 'info', duration = 3000) {
@@ -1331,14 +1344,14 @@ async function studioGenerate(type) {
     let resData;
     if (readySids.length === 1) {
       const sid = readySids[0];
-      const res = await fetch(`/api/sources/${sid}/generate/${type}`, { method: 'POST' });
+      const res = await fetch(`/api/sources/${sid}/generate/${type}?lang=${genLang}`, { method: 'POST' });
       resData = await res.json();
       if (!res.ok) throw new Error(resData.detail || 'Generation failed');
     } else {
       const res = await fetch(`/api/generate/${type}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_ids: readySids })
+        body: JSON.stringify({ source_ids: readySids, lang: genLang })
       });
       resData = await res.json();
       if (!res.ok) throw new Error(resData.detail || 'Generation failed');
@@ -1387,6 +1400,7 @@ document.addEventListener('keydown', e => {
 
 // ── Init ───────────────────────────────────────────────────────
 applyLang();
+applyGenLang();
 loadSources();
 </script>
 </body>

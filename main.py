@@ -26,7 +26,7 @@ import networkx as nx
 import numpy as np
 from docx import Document
 from gtts import gTTS
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -118,8 +118,10 @@ def _gemini_json(prompt: str) -> dict | list:
 # Analysis pipeline
 # ──────────────────────────────────────────────────────────────────────────────
 
-def analyze(content: str, name: str) -> dict:
+def analyze(content: str, name: str, lang: str = 'ru') -> dict:
+    lang_hint = "Russian" if lang == "ru" else "English"
     prompt = f"""You are a research analyst. Analyze the document titled "{name}".
+IMPORTANT: All content in your response must be in {lang_hint} language.
 Return ONLY a valid JSON object (no markdown) with exactly these fields:
 
 {{
@@ -175,11 +177,29 @@ _ACCENT= "#6366F1"
 _LIGHT = "#F8FAFC"
 _MUTED = "#94A3B8"
 
-def gen_presentation(source: dict, out: Path) -> None:
+def gen_presentation(source: dict, out: Path, lang: str = 'ru') -> None:
     a = source.get("analysis") or {}
     prs = PptxPresentation()
     prs.slide_width  = Inches(13.33)
     prs.slide_height = Inches(7.5)
+
+    titles = {
+        "ru": {
+            "overview": "AI-Generated Обзор исследования",
+            "summary": "Резюме",
+            "key_points": "Ключевые моменты",
+            "entities": "Ключевые сущности",
+            "quotes": "Примечательные цитаты",
+        },
+        "en": {
+            "overview": "AI-Generated Research Overview",
+            "summary": "Summary",
+            "key_points": "Key Points",
+            "entities": "Key Entities",
+            "quotes": "Notable Quotes",
+        }
+    }
+    t = titles.get(lang, titles["ru"])
 
     def _blank():
         blank = prs.slide_layouts[6]  # completely blank
@@ -244,7 +264,7 @@ def gen_presentation(source: dict, out: Path) -> None:
     _rect(slide, 0, 3.2, 13.33, 0.06, _ACCENT)
     _txt(slide, source.get("name", "Untitled"),
          0.8, 1.2, 11.7, 2.0, bold=True, size=40, color=_LIGHT, align="LEFT")
-    _txt(slide, "AI-Generated Research Overview",
+    _txt(slide, t["overview"],
          0.8, 3.5, 10, 0.6, size=20, color=_MUTED)
     _txt(slide, datetime.now().strftime("%B %d, %Y"),
          0.8, 4.3, 6, 0.5, size=16, color=_MUTED)
@@ -253,7 +273,7 @@ def gen_presentation(source: dict, out: Path) -> None:
     slide = _blank()
     _bg(slide, _LIGHT)
     _rect(slide, 0, 0, 13.33, 1.1, _ACCENT)
-    _txt(slide, "Summary", 0.6, 0.2, 12, 0.7, bold=True, size=28, color="white")
+    _txt(slide, t["summary"], 0.6, 0.2, 12, 0.7, bold=True, size=28, color="white")
     summary = a.get("summary", "")
     # wrap long summary
     wrapped = textwrap.fill(summary, 110)[:900]
@@ -265,7 +285,7 @@ def gen_presentation(source: dict, out: Path) -> None:
         slide = _blank()
         _bg(slide, _LIGHT)
         _rect(slide, 0, 0, 13.33, 1.1, "#4F46E5")
-        _txt(slide, "Key Points", 0.6, 0.2, 12, 0.7, bold=True, size=28, color="white")
+        _txt(slide, t["key_points"], 0.6, 0.2, 12, 0.7, bold=True, size=28, color="white")
         for i, pt in enumerate(kps[:7]):
             y = 1.35 + i * 0.78
             _rect(slide, 0.5, y, 0.35, 0.35, _ACCENT)
@@ -292,7 +312,7 @@ def gen_presentation(source: dict, out: Path) -> None:
     if any(ents.values()):
         slide = _blank()
         _bg(slide, _DARK)
-        _txt(slide, "Key Entities", 0.6, 0.25, 12, 0.8,
+        _txt(slide, t["entities"], 0.6, 0.25, 12, 0.8,
              bold=True, size=28, color=_LIGHT)
         cols = [("People", ents.get("people", []), "#818CF8"),
                 ("Organizations", ents.get("organizations", []), "#34D399"),
@@ -311,7 +331,7 @@ def gen_presentation(source: dict, out: Path) -> None:
     if quotes:
         slide = _blank()
         _bg(slide, "#1E293B")
-        _txt(slide, "Notable Quotes", 0.6, 0.2, 12, 0.8,
+        _txt(slide, t["quotes"], 0.6, 0.2, 12, 0.8,
              bold=True, size=28, color=_LIGHT)
         for qi, q in enumerate(quotes[:4]):
             y = 1.3 + qi * 1.42
@@ -322,25 +342,39 @@ def gen_presentation(source: dict, out: Path) -> None:
     prs.save(str(out))
 
 
-def gen_audio(source: dict, out: Path) -> None:
+def gen_audio(source: dict, out: Path, lang: str = 'ru') -> None:
     a = source.get("analysis") or {}
     summary = a.get("summary", "No summary available.")
     kps = a.get("key_points", [])
     topics = a.get("topics", [])
 
-    script = (
-        f"Welcome to the audio overview of {source.get('name', 'this document')}. "
-        f"{summary} "
-    )
-    if kps:
-        script += "Key takeaways include: " + ". ".join(kps[:5]) + ". "
-    if topics:
-        script += "The main topics covered are: " + ", ".join(
-            t["title"] for t in topics[:4]
-        ) + ". "
-    script += "This overview was generated by NoteLM."
+    if lang == "ru":
+        script = (
+            f"Добро пожаловать в аудиообзор документа {source.get('name', 'этот документ')}. "
+            f"{summary} "
+        )
+        if kps:
+            script += "Ключевые выводы: " + ". ".join(kps[:5]) + ". "
+        if topics:
+            script += "Основные темы: " + ", ".join(
+                t["title"] for t in topics[:4]
+            ) + ". "
+        script += "Этот обзор создан NoteLM."
+    else:
+        script = (
+            f"Welcome to the audio overview of {source.get('name', 'this document')}. "
+            f"{summary} "
+        )
+        if kps:
+            script += "Key takeaways include: " + ". ".join(kps[:5]) + ". "
+        if topics:
+            script += "The main topics covered are: " + ", ".join(
+                t["title"] for t in topics[:4]
+            ) + ". "
+        script += "This overview was generated by NoteLM."
 
-    tts = gTTS(text=script, lang="en", slow=False)
+    tts_lang = "ru" if lang == "ru" else "en"
+    tts = gTTS(text=script, lang=tts_lang, slow=False)
     tts.save(str(out))
 
 
@@ -542,11 +576,13 @@ def gen_mindmap(source: dict, out: Path) -> None:
     plt.close(fig)
 
 
-def gen_study_guide(source: dict) -> str:
+def gen_study_guide(source: dict, lang: str = 'ru') -> str:
     """Ask Gemini to produce a markdown study guide."""
     a = source.get("analysis") or {}
     content = source.get("content", "")[:20000]
+    lang_label = "Russian" if lang == "ru" else "English"
     prompt = f"""Create a comprehensive study guide for the document "{source.get('name','')}".
+IMPORTANT: Generate ALL content in {lang_label} language.
 
 Document summary: {a.get('summary', '')}
 
@@ -566,10 +602,12 @@ Format as clean markdown. Be thorough and educational."""
     return _gemini(prompt)
 
 
-def gen_faq(source: dict) -> str:
+def gen_faq(source: dict, lang: str = 'ru') -> str:
     a = source.get("analysis") or {}
     content = source.get("content", "")[:20000]
+    lang_label = "Russian" if lang == "ru" else "English"
     prompt = f"""Generate a comprehensive FAQ document for "{source.get('name','')}".
+IMPORTANT: Generate ALL content in {lang_label} language.
 
 Summary: {a.get('summary', '')}
 Content: {content}
@@ -584,10 +622,12 @@ Format as markdown with ## Q: and **A:** pairs."""
     return _gemini(prompt)
 
 
-def gen_briefing(source: dict) -> str:
+def gen_briefing(source: dict, lang: str = 'ru') -> str:
     a = source.get("analysis") or {}
     content = source.get("content", "")[:20000]
+    lang_label = "Russian" if lang == "ru" else "English"
     prompt = f"""Write an executive briefing document for "{source.get('name','')}".
+IMPORTANT: Generate ALL content in {lang_label} language.
 
 Include:
 # Executive Briefing: {source.get('name','')}
@@ -618,11 +658,13 @@ Summary: {a.get('summary', '')}"""
     return _gemini(prompt)
 
 
-def gen_timeline(source: dict) -> str:
+def gen_timeline(source: dict, lang: str = 'ru') -> str:
     a = source.get("analysis") or {}
     content = source.get("content", "")[:20000]
     dates = a.get("entities", {}).get("dates", [])
+    lang_label = "Russian" if lang == "ru" else "English"
     prompt = f"""Extract and reconstruct a chronological timeline from "{source.get('name','')}".
+IMPORTANT: Generate ALL content in {lang_label} language.
 
 Known dates found: {', '.join(dates) if dates else 'scan content for any dates/periods'}.
 
@@ -640,9 +682,11 @@ After the table, add a **Narrative Summary** paragraph explaining the chronology
     return _gemini(prompt)
 
 
-def gen_glossary(source: dict) -> str:
+def gen_glossary(source: dict, lang: str = 'ru') -> str:
     content = source.get("content", "")[:20000]
+    lang_label = "Russian" if lang == "ru" else "English"
     prompt = f"""Extract all technical terms, jargon, and important concepts from "{source.get('name','')}".
+IMPORTANT: Generate ALL content in {lang_label} language.
 
 Content: {content}
 
@@ -857,11 +901,11 @@ def _merge_sources(sids: list[str]) -> dict:
     }
 
 @app.post("/api/sources/{sid}/generate/presentation")
-async def gen_pptx_ep(sid: str):
+async def gen_pptx_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
         out = OUTPUTS / f"{sid}_presentation.pptx"
-        await asyncio.get_event_loop().run_in_executor(None, gen_presentation, s, out)
+        await asyncio.get_event_loop().run_in_executor(None, gen_presentation, s, out, lang)
         url = f"/outputs/{sid}_presentation.pptx"
         sources_db[sid]["pptx_url"] = url
         _save(sources_db)
@@ -872,11 +916,11 @@ async def gen_pptx_ep(sid: str):
         raise HTTPException(500, f"Failed to generate presentation: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/audio")
-async def gen_audio_ep(sid: str):
+async def gen_audio_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
         out = OUTPUTS / f"{sid}_audio.mp3"
-        await asyncio.get_event_loop().run_in_executor(None, gen_audio, s, out)
+        await asyncio.get_event_loop().run_in_executor(None, gen_audio, s, out, lang)
         url = f"/outputs/{sid}_audio.mp3"
         sources_db[sid]["audio_url"] = url
         _save(sources_db)
@@ -887,7 +931,7 @@ async def gen_audio_ep(sid: str):
         raise HTTPException(500, f"Failed to generate audio: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/infographic")
-async def gen_infographic_ep(sid: str):
+async def gen_infographic_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
         out = OUTPUTS / f"{sid}_infographic.png"
@@ -902,7 +946,7 @@ async def gen_infographic_ep(sid: str):
         raise HTTPException(500, f"Failed to generate infographic: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/mindmap")
-async def gen_mindmap_ep(sid: str):
+async def gen_mindmap_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
         out = OUTPUTS / f"{sid}_mindmap.png"
@@ -917,10 +961,10 @@ async def gen_mindmap_ep(sid: str):
         raise HTTPException(500, f"Failed to generate mindmap: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/studyguide")
-async def gen_study_ep(sid: str):
+async def gen_study_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
-        text = await asyncio.get_event_loop().run_in_executor(None, gen_study_guide, s)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_study_guide, s, lang)
         sources_db[sid]["study_guide"] = text
         _save(sources_db)
         return {"content": text}
@@ -930,10 +974,10 @@ async def gen_study_ep(sid: str):
         raise HTTPException(500, f"Failed to generate study guide: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/faq")
-async def gen_faq_ep(sid: str):
+async def gen_faq_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
-        text = await asyncio.get_event_loop().run_in_executor(None, gen_faq, s)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_faq, s, lang)
         sources_db[sid]["faq"] = text
         _save(sources_db)
         return {"content": text}
@@ -943,10 +987,10 @@ async def gen_faq_ep(sid: str):
         raise HTTPException(500, f"Failed to generate FAQ: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/briefing")
-async def gen_briefing_ep(sid: str):
+async def gen_briefing_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
-        text = await asyncio.get_event_loop().run_in_executor(None, gen_briefing, s)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_briefing, s, lang)
         sources_db[sid]["briefing"] = text
         _save(sources_db)
         return {"content": text}
@@ -956,10 +1000,10 @@ async def gen_briefing_ep(sid: str):
         raise HTTPException(500, f"Failed to generate briefing: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/timeline")
-async def gen_timeline_ep(sid: str):
+async def gen_timeline_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
-        text = await asyncio.get_event_loop().run_in_executor(None, gen_timeline, s)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_timeline, s, lang)
         sources_db[sid]["timeline"] = text
         _save(sources_db)
         return {"content": text}
@@ -969,10 +1013,10 @@ async def gen_timeline_ep(sid: str):
         raise HTTPException(500, f"Failed to generate timeline: {str(e)}")
 
 @app.post("/api/sources/{sid}/generate/glossary")
-async def gen_glossary_ep(sid: str):
+async def gen_glossary_ep(sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready(sid)
-        text = await asyncio.get_event_loop().run_in_executor(None, gen_glossary, s)
+        text = await asyncio.get_event_loop().run_in_executor(None, gen_glossary, s, lang)
         sources_db[sid]["glossary"] = text
         _save(sources_db)
         return {"content": text}
@@ -988,6 +1032,7 @@ async def multi_generate_ep(gen_type: str, payload: dict):
     """Generate content from one or more sources identified by source_ids list."""
     try:
         source_ids = payload.get("source_ids", [])
+        lang = payload.get("lang", "ru")
         if not source_ids:
             raise HTTPException(400, "No source_ids provided")
 
@@ -997,13 +1042,13 @@ async def multi_generate_ep(gen_type: str, payload: dict):
 
         if gen_type == "presentation":
             out = OUTPUTS / f"{key}_presentation.pptx"
-            await asyncio.get_event_loop().run_in_executor(None, gen_presentation, merged, out)
+            await asyncio.get_event_loop().run_in_executor(None, gen_presentation, merged, out, lang)
             url = f"/outputs/{key}_presentation.pptx"
             return {"url": url}
 
         elif gen_type == "audio":
             out = OUTPUTS / f"{key}_audio.mp3"
-            await asyncio.get_event_loop().run_in_executor(None, gen_audio, merged, out)
+            await asyncio.get_event_loop().run_in_executor(None, gen_audio, merged, out, lang)
             url = f"/outputs/{key}_audio.mp3"
             return {"url": url}
 
@@ -1020,23 +1065,23 @@ async def multi_generate_ep(gen_type: str, payload: dict):
             return {"url": url}
 
         elif gen_type == "studyguide":
-            text = await asyncio.get_event_loop().run_in_executor(None, gen_study_guide, merged)
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_study_guide, merged, lang)
             return {"content": text}
 
         elif gen_type == "faq":
-            text = await asyncio.get_event_loop().run_in_executor(None, gen_faq, merged)
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_faq, merged, lang)
             return {"content": text}
 
         elif gen_type == "briefing":
-            text = await asyncio.get_event_loop().run_in_executor(None, gen_briefing, merged)
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_briefing, merged, lang)
             return {"content": text}
 
         elif gen_type == "timeline":
-            text = await asyncio.get_event_loop().run_in_executor(None, gen_timeline, merged)
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_timeline, merged, lang)
             return {"content": text}
 
         elif gen_type == "glossary":
-            text = await asyncio.get_event_loop().run_in_executor(None, gen_glossary, merged)
+            text = await asyncio.get_event_loop().run_in_executor(None, gen_glossary, merged, lang)
             return {"content": text}
 
         else:
