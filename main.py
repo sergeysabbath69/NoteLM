@@ -398,7 +398,44 @@ Content excerpt: {content[:5000]}"""
     tts.save(str(out))
 
 
-def gen_infographic(source: dict, out: Path) -> None:
+def build_infographic_prompt(source: dict, lang: str = 'ru') -> str:
+    a = source.get('analysis') or {}
+    name = source.get('name', 'Document')
+    summary = a.get('summary', '')[:500]
+    key_points = a.get('key_points', [])[:5]
+    topics = [t['title'] for t in a.get('topics', [])[:4]]
+    sentiment = a.get('sentiment', 'neutral')
+
+    lang_instruction = "All text in the infographic must be in Russian language." if lang == 'ru' else "All text in the infographic must be in English language."
+
+    points_text = '; '.join(key_points) if key_points else 'key insights from the document'
+    topics_text = ', '.join(topics) if topics else 'main topics'
+
+    prompt = f"""Create a modern, beautiful, professional infographic about: "{name}".
+{lang_instruction}
+
+Design requirements:
+- Clean white or light background
+- Modern flat design with vibrant accent colors
+- Clear typography, large readable text
+- Visual hierarchy: title at top, key sections clearly separated
+- Include: document title, 3-5 key points as bullet items, topic bubbles or icons, sentiment indicator
+- Style: similar to Canva or Google Slides infographic templates
+- Dimensions: landscape orientation, 16:9 ratio
+
+Content to visualize:
+- Title: {name}
+- Summary theme: {summary[:200]}
+- Key points: {points_text}
+- Main topics: {topics_text}
+- Sentiment: {sentiment}
+
+Make it visually stunning with icons, charts, or visual elements. Professional quality."""
+    return prompt
+
+
+def _gen_infographic_matplotlib(source: dict, out: Path) -> None:
+    """Fallback matplotlib infographic generation."""
     a = source.get("analysis") or {}
     topics = a.get("topics", [])
     kps    = a.get("key_points", [])
@@ -485,6 +522,26 @@ def gen_infographic(source: dict, out: Path) -> None:
 
     plt.savefig(str(out), dpi=150, bbox_inches="tight", facecolor=_DARK, edgecolor="none")
     plt.close(fig)
+
+
+def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
+    """Generate infographic using Google Imagen 4, with matplotlib fallback."""
+    try:
+        from google.genai import types as genai_types
+        api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyBPTe1Qo1tCrhLtJAgmozUoypYh3is6c84")
+        imagen_client = genai.Client(api_key=api_key)
+        prompt = build_infographic_prompt(source, lang)
+        result = imagen_client.models.generate_images(
+            model='imagen-4.0-fast-generate-001',
+            prompt=prompt,
+            config=genai_types.GenerateImagesConfig(number_of_images=1, output_mime_type='image/png')
+        )
+        img_bytes = result.generated_images[0].image.image_bytes
+        out.write_bytes(img_bytes)
+    except Exception as e:
+        import logging
+        logging.warning(f"Imagen 4 infographic generation failed ({e}), falling back to matplotlib")
+        _gen_infographic_matplotlib(source, out)
 
 
 def gen_mindmap(source: dict, out: Path) -> None:
@@ -1049,7 +1106,7 @@ async def nb_gen_infographic(nid: str, sid: str, lang: str = Query('ru')):
     try:
         s = _require_ready_in_notebook(nid, sid)
         out = OUTPUTS / f"{sid}_infographic.png"
-        await asyncio.get_event_loop().run_in_executor(None, gen_infographic, s, out)
+        await asyncio.get_event_loop().run_in_executor(None, gen_infographic, s, out, lang)
         url = f"/outputs/{sid}_infographic.png"
         sources_db[sid]["infographic_url"] = url; _save_sources()
         return {"url": url}
@@ -1147,7 +1204,7 @@ async def nb_multi_generate(nid: str, gen_type: str, payload: dict):
             return {"url": f"/outputs/{key}_audio.mp3"}
         elif gen_type == "infographic":
             out = OUTPUTS / f"{key}_infographic.png"
-            await asyncio.get_event_loop().run_in_executor(None, gen_infographic, merged, out)
+            await asyncio.get_event_loop().run_in_executor(None, gen_infographic, merged, out, lang)
             return {"url": f"/outputs/{key}_infographic.png"}
         elif gen_type == "mindmap":
             out = OUTPUTS / f"{key}_mindmap.png"
@@ -1233,7 +1290,7 @@ async def multi_generate_legacy(gen_type: str, payload: dict):
         return {"url": f"/outputs/{key}_audio.mp3"}
     elif gen_type == "infographic":
         out = OUTPUTS / f"{key}_infographic.png"
-        await asyncio.get_event_loop().run_in_executor(None, gen_infographic, merged, out)
+        await asyncio.get_event_loop().run_in_executor(None, gen_infographic, merged, out, lang)
         return {"url": f"/outputs/{key}_infographic.png"}
     elif gen_type == "mindmap":
         out = OUTPUTS / f"{key}_mindmap.png"
