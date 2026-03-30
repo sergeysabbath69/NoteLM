@@ -34,6 +34,10 @@ from pptx import Presentation as PptxPresentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 from google import genai
+import requests
+
+MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
+MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Config
@@ -143,13 +147,22 @@ async def fetch_url(url: str) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _gemini(prompt: str) -> str:
-    resp = _client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-    return resp.text.strip()
+    try:
+        resp = _client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        return resp.text.strip()
+    except Exception as gemini_err:
+        if not MISTRAL_API_KEY:
+            raise gemini_err
+        headers = {"Authorization": f"Bearer {MISTRAL_API_KEY}", "Content-Type": "application/json"}
+        payload = {"model": "mistral-small-latest", "messages": [{"role": "user", "content": prompt}], "max_tokens": 4096}
+        resp = requests.post(MISTRAL_URL, headers=headers, json=payload, timeout=60)
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
 
 def _gemini_json(prompt: str) -> dict | list:
     raw = _gemini(prompt)
     raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
-    raw = re.sub(r"\s*```$", "", raw, flags=re.MULTILINE)
+    raw = re.sub(r"```\s*$", "", raw, flags=re.MULTILINE)
     return json.loads(raw.strip())
 
 # ──────────────────────────────────────────────────────────────────────────────
