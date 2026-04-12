@@ -760,6 +760,481 @@ List terms alphabetically. Include at minimum 15-30 terms."""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Deep analysis
+# ──────────────────────────────────────────────────────────────────────────────
+
+def deep_analyze(source: dict, lang: str = 'ru') -> dict:
+    """Deep analysis: connections, semantics, logic, key conclusions."""
+    content = source.get('content', '')
+    name = source.get('name', '')
+    lang_word = "RUSSIAN" if lang == "ru" else "ENGLISH"
+
+    prompt = f"""RESPOND ENTIRELY IN {lang_word} LANGUAGE.
+
+Perform DEEP ANALYSIS of this document: "{name}"
+
+Analyze:
+1. SEMANTIC STRUCTURE - how ideas build on each other
+2. LOGICAL CHAIN - cause-effect relationships, argumentation
+3. KEY INSIGHTS - non-obvious conclusions the author implies
+4. CONTRADICTIONS - internal contradictions or tensions in the text
+5. CORE THESIS - the single most important idea
+6. EVIDENCE MAP - what arguments support what conclusions
+7. IMPLICIT KNOWLEDGE - what the author assumes the reader knows
+8. PRACTICAL APPLICATIONS - how to apply this knowledge
+
+Content: {content[:25000]}
+
+Return ONLY valid JSON (no markdown fences):
+{{
+  "core_thesis": "string",
+  "semantic_structure": [{{"level": 1, "idea": "string", "builds_on": null}}],
+  "logical_chains": [{{"premise": "string", "conclusion": "string", "strength": "strong|medium|weak"}}],
+  "key_insights": [{{"insight": "string", "evidence": "string", "importance": "high|medium|low"}}],
+  "contradictions": [{{"statement_a": "string", "statement_b": "string", "type": "internal|external"}}],
+  "evidence_map": [{{"claim": "string", "supporting_evidence": ["string"]}}],
+  "practical_applications": ["string"],
+  "podcast_talking_points": ["key point for engaging podcast discussion"]
+}}"""
+
+    try:
+        return _gemini_json(prompt)
+    except Exception as e:
+        import logging
+        logging.warning(f"Deep analysis failed for {source.get('id','?')}: {e}")
+        return {
+            "core_thesis": "",
+            "semantic_structure": [],
+            "logical_chains": [],
+            "key_insights": [],
+            "contradictions": [],
+            "evidence_map": [],
+            "practical_applications": [],
+            "podcast_talking_points": [],
+            "_error": str(e),
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Book processing pipeline
+# ──────────────────────────────────────────────────────────────────────────────
+
+def process_book(source: dict, content: str, lang: str = 'ru') -> dict:
+    """Extract TOC, split by chapters, generate summaries."""
+    lang_instruction = (
+        "RESPOND ENTIRELY IN RUSSIAN LANGUAGE. НЕ ИСПОЛЬЗУЙ АНГЛИЙСКИЙ ЯЗЫК."
+        if lang == "ru" else "RESPOND ENTIRELY IN ENGLISH LANGUAGE."
+    )
+
+    # 1. Detect TOC with regex/heuristic
+    chapters = []
+    lines = content.split('\n')
+    toc_patterns = [
+        r'^(Chapter|Глава|Часть|Part|Section|Раздел)\s+(\d+|[IVXivx]+)[\.:]?\s+(.+)$',
+        r'^(\d+)\.\s+([A-ZА-Я][^\n]{3,60})$',
+        r'^([A-ZА-Я][^\n]{3,50})\s*$',  # all-caps or title case short lines
+    ]
+
+    toc_entries = []
+    for i, line in enumerate(lines):
+        line = line.strip()
+        for pat in toc_patterns[:2]:
+            m = re.match(pat, line, re.IGNORECASE)
+            if m:
+                toc_entries.append({'title': line, 'position': i})
+                break
+
+    # If no TOC found, try splitting by heading-like patterns
+    if not toc_entries:
+        heading_pat = re.compile(r'^(#{1,3}\s+.+|Chapter\s+\d+|Глава\s+\d+|\d+\.\s+[A-ZА-Я].{3,50})$', re.IGNORECASE)
+        for i, line in enumerate(lines):
+            if heading_pat.match(line.strip()) and len(line.strip()) < 80:
+                toc_entries.append({'title': line.strip(), 'position': i})
+
+    # 2. Split content by chapters
+    if len(toc_entries) >= 2:
+        for idx, entry in enumerate(toc_entries):
+            start = entry['position']
+            end = toc_entries[idx + 1]['position'] if idx + 1 < len(toc_entries) else len(lines)
+            chapter_content = '\n'.join(lines[start:end]).strip()
+            chapters.append({
+                'title': entry['title'],
+                'content': chapter_content[:10000],  # limit per chapter
+                'summary': '',
+                'position': start,
+            })
+    else:
+        # Fall back to splitting into ~equal chunks of ~3000 words
+        words = content.split()
+        chunk_size = max(1000, len(words) // 8)
+        for i in range(0, len(words), chunk_size):
+            chunk_words = words[i:i + chunk_size]
+            chapters.append({
+                'title': f'Section {i // chunk_size + 1}',
+                'content': ' '.join(chunk_words),
+                'summary': '',
+                'position': i,
+            })
+
+    # 3. Generate chapter summaries (limit to first 10 chapters to avoid quota)
+    for chapter in chapters[:10]:
+        try:
+            prompt = f"""{lang_instruction}
+Write a concise 2-3 sentence summary of this chapter titled "{chapter['title']}":
+
+{chapter['content'][:5000]}
+
+Return only the summary text, no additional formatting."""
+            chapter['summary'] = _gemini(prompt)
+        except Exception as e:
+            chapter['summary'] = f"Summary unavailable: {str(e)[:100]}"
+
+    # 4. Generate overall book summary
+    chapter_summaries = '\n'.join(
+        f"- {c['title']}: {c['summary']}" for c in chapters[:10]
+    )
+    try:
+        prompt = f"""{lang_instruction}
+Based on these chapter summaries of the book "{source.get('name', 'Book')}",
+write a comprehensive 3-4 paragraph overall summary:
+
+{chapter_summaries}
+
+Return only the summary text."""
+        overall_summary = _gemini(prompt)
+    except Exception as e:
+        overall_summary = f"Overall summary unavailable: {str(e)[:100]}"
+
+    return {
+        'chapters': chapters,
+        'overall_summary': overall_summary,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Semantic links between sources
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _chunk_text(content: str, chunk_size: int = 1000) -> list:
+    """Split text into chunks of approximately chunk_size words."""
+    words = content.split()
+    chunks = []
+    for i in range(0, len(words), chunk_size):
+        chunks.append(' '.join(words[i:i + chunk_size]))
+    return chunks
+
+
+def find_semantic_links(sources: list) -> list:
+    """Find semantic connections between sources using Gemini."""
+    if len(sources) < 2:
+        return []
+
+    links = []
+    # Build excerpts from each source (limit to avoid huge prompts)
+    source_excerpts = []
+    for s in sources[:5]:  # max 5 sources
+        content = s.get('content', '')[:8000]
+        source_excerpts.append({
+            'id': s['id'],
+            'name': s.get('name', 'Unknown'),
+            'excerpt': content[:3000],
+        })
+
+    # Compare pairs
+    for i in range(len(source_excerpts)):
+        for j in range(i + 1, len(source_excerpts)):
+            sa = source_excerpts[i]
+            sb = source_excerpts[j]
+            try:
+                prompt = f"""Analyze these two document excerpts and find semantic connections between them.
+
+Source A: "{sa['name']}"
+{sa['excerpt'][:2000]}
+
+Source B: "{sb['name']}"
+{sb['excerpt'][:2000]}
+
+Find 2-4 specific semantic connections. For each connection return a JSON object with:
+- chunk_a: relevant excerpt from Source A (max 200 chars)
+- chunk_b: relevant excerpt from Source B (max 200 chars)  
+- link_type: one of "confirms", "contradicts", "develops", "illustrates"
+- confidence: float 0.0-1.0
+- explanation: 1-2 sentence explanation in Russian
+
+Return ONLY a valid JSON array, no markdown fences."""
+                raw = _gemini(prompt)
+                raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.MULTILINE)
+                raw = re.sub(r'```\s*$', '', raw, flags=re.MULTILINE)
+                found_links = json.loads(raw.strip())
+                if isinstance(found_links, list):
+                    for link in found_links:
+                        link['source_a_id'] = sa['id']
+                        link['source_a_name'] = sa['name']
+                        link['source_b_id'] = sb['id']
+                        link['source_b_name'] = sb['name']
+                        links.append(link)
+            except Exception as e:
+                import logging
+                logging.warning(f"Semantic link analysis failed for {sa['id']}/{sb['id']}: {e}")
+
+    return links
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Brandbook processing
+# ──────────────────────────────────────────────────────────────────────────────
+
+def extract_brand_profile(content: str) -> dict:
+    """Use Gemini to extract brand profile from brandbook content."""
+    prompt = f"""Analyze this brandbook document and extract the brand profile.
+
+Content:
+{content[:15000]}
+
+Return ONLY a valid JSON object (no markdown fences) with these fields:
+{{
+  "brand_name": "string",
+  "colors": {{"primary": "hex or name", "secondary": "...", "accent": "..."}},
+  "fonts": {{"primary": "font name", "secondary": "font name"}},
+  "tone_of_voice": "description of brand voice and personality",
+  "layout_rules": ["rule 1", "rule 2", "..."],
+  "do_not_use": ["prohibited element 1", "..."],
+  "tagline": "brand tagline if present",
+  "target_audience": "description",
+  "brand_values": ["value 1", "value 2", "..."]
+}}"""
+    try:
+        return _gemini_json(prompt)
+    except Exception as e:
+        return {
+            "brand_name": "Unknown",
+            "colors": {},
+            "fonts": {},
+            "tone_of_voice": "Not extracted",
+            "layout_rules": [],
+            "do_not_use": [],
+            "tagline": "",
+            "target_audience": "",
+            "brand_values": [],
+            "_error": str(e),
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Podcast engine
+# ──────────────────────────────────────────────────────────────────────────────
+
+def gen_podcast_full(source: dict, lang: str = 'ru') -> str:
+    """Generate two-host dialogue podcast (NotebookLM style, but more alive). Returns mp3 path."""
+    deep     = source.get('deep_analysis') or {}
+    analysis = source.get('analysis') or {}
+    name     = source.get('name', 'this document')
+    sid      = source.get('id', 'unknown')
+    tts_lang = "ru" if lang == "ru" else "en"
+    is_ru    = lang == "ru"
+
+    host_a   = "Ведущий 1" if is_ru else "Host 1"
+    host_b   = "Ведущий 2" if is_ru else "Host 2"
+    lang_line = (
+        "Весь диалог — ТОЛЬКО НА РУССКОМ ЯЗЫКЕ. Ни слова по-английски."
+        if is_ru else
+        "Write the entire transcript in ENGLISH only."
+    )
+
+    core_thesis    = deep.get('core_thesis', '')
+    key_insights   = json.dumps(deep.get('key_insights',   [])[:6], ensure_ascii=False)
+    logical_chains = json.dumps(deep.get('logical_chains', [])[:4], ensure_ascii=False)
+    talking_points = json.dumps(deep.get('podcast_talking_points', [])[:8], ensure_ascii=False)
+    practical      = json.dumps(deep.get('practical_applications', [])[:5], ensure_ascii=False)
+    contradictions = json.dumps(deep.get('contradictions', [])[:3], ensure_ascii=False)
+    summary        = analysis.get('summary', '')
+    key_points     = ', '.join(analysis.get('key_points', [])[:6])
+
+    prompt = f"""{lang_line}
+
+Write a podcast transcript in the style of a NotebookLM Audio Overview, but more alive and with more humor.
+
+Two hosts (unnamed — {host_a} and {host_b}) are genuinely exploring "{name}" together.
+
+Material to work from:
+- Core thesis: {core_thesis}
+- Key insights: {key_insights}
+- Logical chains: {logical_chains}
+- Talking points: {talking_points}
+- Practical applications: {practical}
+- Contradictions / tensions: {contradictions}
+- Summary: {summary}
+- Key points: {key_points}
+
+Host style:
+- Genuinely react to ideas: "Wait, so basically they're saying...", "Hold on, that means..."
+- Disagree on interpretations occasionally — one pushes back, the other defends
+- Make jokes when something is absurd, counterintuitive, or surprisingly obvious
+- Use natural speech: interruptions, "yeah but...", "okay okay but...", "no no no listen"
+- Get genuinely excited about the interesting parts
+- Call out when something is obvious OR surprisingly non-obvious
+- Keep it USEFUL — listeners should learn something real, not just be entertained
+- Bring analogies and real-world examples naturally into the conversation
+
+Structure (15–20 min / 2000–2500 words total):
+
+COLD OPEN: one host drops a surprising or provocative statement about the material — no intro pleasantries
+
+BLOCK 1 — What is this actually about? (400–500 words)
+Two hosts figure out the core idea together, debating how to frame it, occasionally confusing each other in funny ways
+
+BLOCK 2 — The interesting stuff (600–700 words)
+Deep dive into 2–3 key insights. Genuine back-and-forth. At least one "wait, that's actually insane" moment.
+
+BLOCK 3 — Okay but so what? (400–500 words)
+Practical implications. One host pushes hard for real-world use cases. The other plays devil's advocate.
+
+BLOCK 4 — The most surprising / controversial point (350–450 words)
+They genuinely disagree or are genuinely surprised. Let it breathe.
+
+CLOSING — Quick fire (200–250 words)
+Each says their single biggest takeaway. They don't fully agree. End on something memorable, not a summary.
+
+Format STRICTLY as:
+{host_a}: [text]
+{host_b}: [text]
+{host_a}: [text]
+...
+
+Each turn: 1–4 sentences. No long monologues — this is a DIALOGUE.
+Total: 2000–2500 words.
+Output ONLY the dialogue. No section headers, no stage directions, no parenthetical notes."""
+
+    try:
+        script = _gemini(prompt)
+    except Exception:
+        pts = deep.get('podcast_talking_points', []) or analysis.get('key_points', [])
+        script = (
+            f"{host_a}: Итак, сегодня разбираем «{name}». {summary}\n"
+            f"{host_b}: Интересно. Что самое важное?\n"
+            + "\n".join(
+                f"{host_a if i%2==0 else host_b}: {pt}"
+                for i, pt in enumerate(pts[:6])
+            )
+        )
+
+    # Save script as markdown
+    script_path = OUTPUTS / f"{sid}_podcast_script.md"
+    script_path.write_text(
+        f"# Podcast Script: {name}\n\n"
+        f"_Generated by Knowledge Studio_\n\n"
+        f"---\n\n"
+        f"{script}",
+        encoding='utf-8'
+    )
+    sources_db[sid]["podcast_script_url"] = f"/outputs/{sid}_podcast_script.md"
+
+    # Strip speaker labels for single-voice TTS
+    tts_text = re.sub(
+        rf'^(?:{re.escape(host_a)}|{re.escape(host_b)}):\s*',
+        '', script, flags=re.MULTILINE
+    ).strip()
+
+    out = OUTPUTS / f"{sid}_podcast_full.mp3"
+    gTTS(text=tts_text, lang=tts_lang, slow=False).save(str(out))
+    return str(out)
+
+
+def gen_podcast_chapter(chapter: dict, book_name: str, chapter_idx: int,
+                        source_deep: dict = None, lang: str = 'ru') -> str:
+    """Generate two-host dialogue podcast for a single book chapter. Returns mp3 path."""
+    tts_lang = "ru" if lang == "ru" else "en"
+    is_ru    = lang == "ru"
+
+    host_a   = "Ведущий 1" if is_ru else "Host 1"
+    host_b   = "Ведущий 2" if is_ru else "Host 2"
+    lang_line = (
+        "Весь диалог — ТОЛЬКО НА РУССКОМ ЯЗЫКЕ."
+        if is_ru else
+        "Write the entire transcript in ENGLISH only."
+    )
+
+    title    = chapter.get('title', f'Chapter {chapter_idx + 1}')
+    content  = chapter.get('content', '')[:8000]
+    summary  = chapter.get('summary', '')
+    deep     = chapter.get('deep_analysis') or source_deep or {}
+
+    talking_points = json.dumps(deep.get('podcast_talking_points', [])[:5], ensure_ascii=False)
+    insights       = json.dumps(deep.get('key_insights',   [])[:4], ensure_ascii=False)
+    core           = deep.get('core_thesis', '')
+
+    prompt = f"""{lang_line}
+
+Write a podcast transcript in the style of a NotebookLM Audio Overview, but more alive and with humor.
+
+Two hosts ({host_a} and {host_b}) are discussing chapter "{title}" from "{book_name}".
+
+Chapter material:
+- Summary: {summary}
+- Core idea: {core}
+- Key insights: {insights}
+- Talking points: {talking_points}
+- Content: {content[:5000]}
+
+Host style:
+- Natural reactions: "Wait, so...", "Hold on...", "That's actually wild"
+- Occasional disagreement on how to interpret the chapter's ideas
+- Jokes when something is counterintuitive or absurd
+- Real examples and analogies
+- One host sometimes says "okay but who actually cares" — the other convinces them
+
+Structure (10–15 min / 1500–2000 words):
+
+COLD OPEN: provocative or surprising statement from the chapter (no "in this chapter...")
+
+MAIN DISCUSSION (1000–1300 words):
+- Unpack the key ideas with genuine back-and-forth
+- At least one moment of genuine surprise or disagreement
+- Examples, analogies, real-world connections
+
+PRACTICAL TAKEAWAYS (250–350 words):
+- What can you actually do with this? One host pushes for specifics.
+
+CLOSING (200–250 words):
+- Each host's one takeaway from the chapter — they don't fully agree
+- Brief bridge: how this fits the bigger picture of the book
+
+Format STRICTLY:
+{host_a}: [text]
+{host_b}: [text]
+...
+
+Each turn: 1–4 sentences. Total: 1500–2000 words.
+Output ONLY the dialogue. No section headers, no stage directions."""
+
+    try:
+        script = _gemini(prompt)
+    except Exception:
+        script = (
+            f"{host_a}: Разбираем главу «{title}» из «{book_name}». {summary}\n"
+            f"{host_b}: Интересно. Что главное?\n"
+            f"{host_a}: {core or content[:300]}"
+        )
+
+    # Save chapter script
+    script_path = OUTPUTS / f"chapter_{chapter_idx}_podcast_script.md"
+    script_path.write_text(
+        f"# Chapter Podcast: {title}\n_From: {book_name}_\n\n---\n\n{script}",
+        encoding='utf-8'
+    )
+
+    # Strip labels for TTS
+    tts_text = re.sub(
+        rf'^(?:{re.escape(host_a)}|{re.escape(host_b)}):\s*',
+        '', script, flags=re.MULTILINE
+    ).strip()
+
+    out = OUTPUTS / f"chapter_{chapter_idx}_podcast.mp3"
+    gTTS(text=tts_text, lang=tts_lang, slow=False).save(str(out))
+    return str(out)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Merge sources helper
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -836,6 +1311,34 @@ async def process_source(sid: str, file_path: Optional[Path], url: Optional[str]
         sources_db[sid]["content"] = content
         sources_db[sid]["analysis"] = analyze(content, sources_db[sid]["name"], lang)
         sources_db[sid]["status"] = "ready"
+        _save_sources()
+
+        # Deep analysis — runs automatically after regular analysis
+        try:
+            sources_db[sid]["deep_analysis"] = deep_analyze(sources_db[sid], lang)
+        except Exception as da_err:
+            import logging
+            logging.warning(f"Deep analysis failed for {sid}: {da_err}")
+        _save_sources()
+
+        # Handle special source types
+        source_type = sources_db[sid].get("source_type", "document")
+        if source_type == "book":
+            try:
+                book_result = process_book(sources_db[sid], content, lang)
+                sources_db[sid]["chapters"] = book_result.get("chapters", [])
+                sources_db[sid]["analysis"]["summary"] = book_result.get(
+                    "overall_summary", sources_db[sid]["analysis"].get("summary", "")
+                )
+            except Exception as book_err:
+                import logging
+                logging.warning(f"Book processing failed for {sid}: {book_err}")
+        elif source_type == "brandbook":
+            try:
+                sources_db[sid]["brand_profile"] = extract_brand_profile(content)
+            except Exception as brand_err:
+                import logging
+                logging.warning(f"Brandbook processing failed for {sid}: {brand_err}")
     except Exception as e:
         sources_db[sid]["status"] = "error"
         sources_db[sid]["error"] = str(e)
@@ -846,7 +1349,7 @@ async def process_source(sid: str, file_path: Optional[Path], url: Optional[str]
 # FastAPI app
 # ──────────────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="NoteLM", version="3.0.0")
+app = FastAPI(title="Knowledge Studio", version="4.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -966,6 +1469,7 @@ async def upload_to_notebook(
     file: Optional[UploadFile] = File(None),
     url: Optional[str] = Form(None),
     lang: str = Form('ru'),
+    source_type: str = Form('document'),
 ):
     nb = _get_notebook(nid)
     sid = uuid.uuid4().hex[:10]
@@ -980,6 +1484,7 @@ async def upload_to_notebook(
                 raise HTTPException(400, "File too large (max 50MB)")
             fp.write_bytes(content)
             sources_db[sid] = dict(id=sid, name=safe, type="file",
+                                   source_type=source_type,
                                    file_path=str(fp), status="pending",
                                    notebook_id=nid,
                                    created_at=datetime.now().isoformat())
@@ -991,6 +1496,7 @@ async def upload_to_notebook(
             if not url.startswith(('http://','https://')):
                 raise HTTPException(400, "URL must start with http:// or https://")
             sources_db[sid] = dict(id=sid, name=url[:80], type="url",
+                                   source_type=source_type,
                                    url=url, status="pending",
                                    notebook_id=nid,
                                    created_at=datetime.now().isoformat())
@@ -1187,6 +1693,175 @@ async def nb_gen_glossary(nid: str, sid: str, lang: str = Query('ru')):
         return {"content": text}
     except HTTPException: raise
     except Exception as e: raise HTTPException(500, str(e))
+
+
+# ── New KnowledgeStudio endpoints ────────────────────────────────────────────
+
+@app.post("/api/notebooks/{nid}/sources/{sid}/set_type")
+async def set_source_type(nid: str, sid: str, payload: dict, background_tasks: BackgroundTasks):
+    """Set source type and optionally trigger reprocessing."""
+    nb = _get_notebook(nid)
+    if sid not in nb.get("sources", []):
+        raise HTTPException(404, "Source not in notebook")
+    s = sources_db.get(sid)
+    if not s:
+        raise HTTPException(404, "Source not found")
+
+    source_type = payload.get("type", "document")
+    if source_type not in ("document", "book", "brandbook", "url", "youtube"):
+        raise HTTPException(400, f"Invalid type: {source_type}")
+
+    s["source_type"] = source_type
+    lang = payload.get("lang", "ru")
+
+    if source_type == "book" and s.get("status") == "ready":
+        content = s.get("content", "")
+        if content:
+            background_tasks.add_task(_reprocess_book, sid, content, lang)
+
+    elif source_type == "brandbook" and s.get("status") == "ready":
+        content = s.get("content", "")
+        if content:
+            background_tasks.add_task(_reprocess_brandbook, sid, content)
+
+    _save_sources()
+    return {**{k: v for k, v in s.items() if k != "content"}}
+
+
+async def _reprocess_book(sid: str, content: str, lang: str):
+    try:
+        s = sources_db.get(sid)
+        if not s:
+            return
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, process_book, s, content, lang
+        )
+        s["chapters"] = result.get("chapters", [])
+        s["analysis"] = s.get("analysis") or {}
+        s["analysis"]["summary"] = result.get("overall_summary", s["analysis"].get("summary", ""))
+        _save_sources()
+    except Exception as e:
+        import logging
+        logging.error(f"Book reprocess failed for {sid}: {e}")
+
+
+async def _reprocess_brandbook(sid: str, content: str):
+    try:
+        s = sources_db.get(sid)
+        if not s:
+            return
+        profile = await asyncio.get_event_loop().run_in_executor(
+            None, extract_brand_profile, content
+        )
+        s["brand_profile"] = profile
+        _save_sources()
+    except Exception as e:
+        import logging
+        logging.error(f"Brandbook reprocess failed for {sid}: {e}")
+
+
+@app.get("/api/notebooks/{nid}/links")
+async def get_notebook_links(nid: str):
+    """Return semantic links between sources in this notebook."""
+    nb = _get_notebook(nid)
+    links = nb.get("semantic_links", [])
+    return {"links": links}
+
+
+@app.post("/api/notebooks/{nid}/analyze_links")
+async def analyze_notebook_links(nid: str, background_tasks: BackgroundTasks):
+    """Trigger semantic link analysis between sources (async)."""
+    nb = _get_notebook(nid)
+    ready_sources = [
+        sources_db[sid] for sid in nb.get("sources", [])
+        if sources_db.get(sid) and sources_db[sid].get("status") == "ready"
+    ]
+    if len(ready_sources) < 2:
+        raise HTTPException(400, "Need at least 2 ready sources to analyze links")
+    nb["links_status"] = "analyzing"
+    _save_notebooks()
+    background_tasks.add_task(_run_link_analysis, nid, ready_sources)
+    return {"status": "analyzing", "source_count": len(ready_sources)}
+
+
+async def _run_link_analysis(nid: str, ready_sources: list):
+    try:
+        links = await asyncio.get_event_loop().run_in_executor(
+            None, find_semantic_links, ready_sources
+        )
+        nb = notebooks_db.get(nid)
+        if nb:
+            nb["semantic_links"] = links
+            nb["links_status"] = "ready"
+            nb["links_analyzed_at"] = datetime.now().isoformat()
+            _save_notebooks()
+    except Exception as e:
+        nb = notebooks_db.get(nid)
+        if nb:
+            nb["links_status"] = "error"
+            nb["links_error"] = str(e)
+            _save_notebooks()
+
+
+@app.post("/api/notebooks/{nid}/sources/{sid}/generate/podcast_full")
+async def nb_gen_podcast_full(nid: str, sid: str, lang: str = Query('ru')):
+    try:
+        s = _require_ready_in_notebook(nid, sid)
+        out_path = await asyncio.get_event_loop().run_in_executor(
+            None, gen_podcast_full, s, lang
+        )
+        url = f"/outputs/{Path(out_path).name}"
+        sources_db[sid]["podcast_full_url"] = url
+        _save_sources()
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/notebooks/{nid}/sources/{sid}/generate/podcast_chapter/{chapter_idx}")
+async def nb_gen_podcast_chapter(nid: str, sid: str, chapter_idx: int, lang: str = Query('ru')):
+    try:
+        s = _require_ready_in_notebook(nid, sid)
+        chapters = s.get("chapters", [])
+        if not chapters:
+            raise HTTPException(400, "No chapters found. Make sure source is processed as a book.")
+        if chapter_idx < 0 or chapter_idx >= len(chapters):
+            raise HTTPException(400, f"Chapter index {chapter_idx} out of range (0-{len(chapters)-1})")
+        chapter = chapters[chapter_idx]
+        book_name = s.get("name", "Book")
+        source_deep = s.get("deep_analysis") or {}
+        out_path = await asyncio.get_event_loop().run_in_executor(
+            None, gen_podcast_chapter, chapter, book_name, chapter_idx, source_deep, lang
+        )
+        url = f"/outputs/{Path(out_path).name}"
+        return {"url": url, "chapter_title": chapter.get("title", "")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/notebooks/{nid}/sources/{sid}/podcast_script")
+async def nb_get_podcast_script(nid: str, sid: str):
+    s = _require_ready_in_notebook(nid, sid)
+    script_url = s.get("podcast_script_url")
+    if not script_url:
+        raise HTTPException(404, "Podcast script not yet generated")
+    script_path = OUTPUTS / f"{sid}_podcast_script.md"
+    if not script_path.exists():
+        raise HTTPException(404, "Script file not found")
+    return {"content": script_path.read_text(encoding='utf-8'), "url": script_url}
+
+
+@app.get("/api/notebooks/{nid}/sources/{sid}/deep_analysis")
+async def nb_get_deep_analysis(nid: str, sid: str):
+    s = _require_ready_in_notebook(nid, sid)
+    da = s.get("deep_analysis")
+    if not da:
+        raise HTTPException(404, "Deep analysis not yet available for this source")
+    return da
 
 
 # ── Multi-source generation (notebook-scoped) ─────────────────────────────────

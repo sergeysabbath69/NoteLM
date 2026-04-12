@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NoteLM — AI Research Assistant</title>
+<title>Knowledge Studio — AI Research Assistant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -306,6 +307,37 @@ header {
 @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 .divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+/* Panel tabs (Chat / Knowledge Map) */
+.panel-tab-btn {
+  padding: 4px 10px; border-radius: var(--radius-xs);
+  border: 1px solid transparent; background: none;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--text3); transition: all .12s;
+}
+.panel-tab-btn.active { background: var(--green-light); border-color: var(--green-mid); color: var(--green-dark); }
+.panel-tab-btn:hover { color: var(--green); }
+
+/* Chapter tree */
+.chapter-item {
+  padding: 6px 8px; border-radius: var(--radius-xs);
+  font-size: 11px; color: var(--text2); cursor: pointer;
+  transition: background .12s; border-left: 2px solid transparent;
+  margin-bottom: 2px;
+}
+.chapter-item:hover { background: var(--bg); border-left-color: var(--green); }
+.chapter-item.active { background: var(--green-light); border-left-color: var(--green); color: var(--green-dark); }
+.chapter-title { font-weight: 500; }
+.chapter-summary { font-size: 10px; color: var(--text3); margin-top: 2px; line-height: 1.4; }
+
+/* Source type badge */
+.source-type-badge {
+  font-size: 9px; font-weight: 700; padding: 1px 5px;
+  border-radius: 99px; text-transform: uppercase; letter-spacing: .3px;
+}
+.source-type-badge.book { background: #fef3c7; color: #d97706; }
+.source-type-badge.brandbook { background: #fce7f3; color: #db2777; }
+.source-type-badge.document { background: var(--green-light); color: var(--green-dark); }
 </style>
 </head>
 <body>
@@ -314,8 +346,8 @@ header {
   <!-- ── Header ── -->
   <header id="main-header">
     <div class="logo" onclick="goHome()">
-      <div class="logo-icon">📝</div>
-      Note<span>LM</span>
+      <div class="logo-icon">🧠</div>
+      Knowledge<span> Studio</span>
     </div>
 
     <!-- Notebook view breadcrumb (hidden on home) -->
@@ -340,7 +372,7 @@ header {
   <div id="screen-notebooks" style="display:flex">
     <div class="notebooks-home" id="notebooks-home">
       <div class="notebooks-home-header">
-        <h1>📚 My Notebooks</h1>
+        <h1>📚 Knowledge Studio</h1>
         <button class="btn-new-notebook" onclick="openCreateModal()">＋ New notebook</button>
       </div>
       <div class="notebooks-grid" id="notebooks-grid">
@@ -365,6 +397,11 @@ header {
         <div class="panel-body" id="sources-body">
           <button class="btn-add-source" onclick="openAddModal()">＋ Add source</button>
           <div id="sources-list"></div>
+          <!-- Chapter tree (shown when a book source is selected) -->
+          <div id="chapter-tree" style="display:none;margin-top:8px">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);margin-bottom:6px;padding:0 4px">Chapters</div>
+            <div id="chapter-tree-list"></div>
+          </div>
           <div class="drop-zone" id="drop-zone" onclick="openAddModal()">
             <div class="drop-zone-icon">⬆️</div>
             <div>Drop files here or click to upload</div>
@@ -376,9 +413,31 @@ header {
       <!-- ── CHAT PANEL ── -->
       <div class="panel" id="panel-chat">
         <div class="panel-header">
-          <span>Chat</span>
+          <div style="display:flex;gap:4px">
+            <button class="panel-tab-btn active" id="tab-chat-btn" onclick="switchPanelTab('chat')">💬 Chat</button>
+            <button class="panel-tab-btn" id="tab-map-btn" onclick="switchPanelTab('map')">🗺️ Knowledge Map</button>
+          </div>
           <button class="btn-icon" style="width:24px;height:24px;font-size:13px" onclick="clearChat()">✕</button>
         </div>
+
+        <!-- Knowledge Map view -->
+        <div id="panel-map" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+          <div style="padding:10px 16px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);background:var(--white)">
+            <button onclick="analyzeLinks()" style="padding:6px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer">⚡ Analyze Links</button>
+            <span id="links-status" style="font-size:11px;color:var(--text3)">Select 2+ sources and click Analyze</span>
+          </div>
+          <div id="knowledge-map-container" style="flex:1;overflow:hidden;position:relative;background:var(--bg)">
+            <svg id="knowledge-map-svg" width="100%" height="100%"></svg>
+            <div id="map-legend" style="position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,0.9);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:11px">
+              <div style="font-weight:700;margin-bottom:4px">Link Types</div>
+              <div><span style="color:#22c55e">●</span> Confirms</div>
+              <div><span style="color:#ef4444">●</span> Contradicts</div>
+              <div><span style="color:#3b82f6">●</span> Develops</div>
+              <div><span style="color:#f59e0b">●</span> Illustrates</div>
+            </div>
+          </div>
+        </div>
+
         <div class="chat-messages" id="chat-messages">
           <div id="chat-welcome" class="chat-suggestions">
             <div class="welcome">Ask about your sources</div>
@@ -391,7 +450,7 @@ header {
             </div>
           </div>
         </div>
-        <div class="chat-input-area">
+        <div class="chat-input-area" id="chat-input-area">
           <div class="chat-input-wrap">
             <textarea id="chat-input" rows="1" placeholder="Ask about your sources…" maxlength="4000"></textarea>
             <button class="btn-send" id="btn-send" onclick="sendMessage()">↑</button>
@@ -414,6 +473,22 @@ header {
               <span class="sbr-arrow">▾</span>
             </div>
             <div class="studio-result" id="result-audio"><div class="studio-result-inner audio-player-wrap" id="content-audio"></div></div>
+          </div>
+
+          <div class="studio-section">
+            <div class="studio-btn-row" id="sbr-podcast_full" onclick="studioGenerate('podcast_full')">
+              <div class="sbr-left"><span class="sbr-icon">🎧</span><span class="sbr-label">Podcast (Full)</span></div>
+              <span class="sbr-arrow">▾</span>
+            </div>
+            <div class="studio-result" id="result-podcast_full"><div class="studio-result-inner audio-player-wrap" id="content-podcast_full"></div></div>
+          </div>
+
+          <div class="studio-section">
+            <div class="studio-btn-row" id="sbr-podcast_chapters" onclick="generateChapterPodcasts()">
+              <div class="sbr-left"><span class="sbr-icon">📖</span><span class="sbr-label">Podcast by Chapters</span></div>
+              <span class="sbr-arrow">▾</span>
+            </div>
+            <div class="studio-result" id="result-podcast_chapters"><div class="studio-result-inner" id="content-podcast_chapters"></div></div>
           </div>
 
           <div class="studio-section">
@@ -550,12 +625,28 @@ header {
         <small>PDF, DOCX, TXT — max 50MB</small>
       </div>
       <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" onchange="fileSelected(this)">
+      <div class="form-group" style="margin-top:12px">
+        <label>Source Type</label>
+        <select id="upload-source-type" style="width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);font-family:var(--font);font-size:13.5px;color:var(--text);background:var(--white);outline:none;">
+          <option value="document">📄 Document</option>
+          <option value="book">📚 Book</option>
+          <option value="brandbook">🎨 Brandbook</option>
+        </select>
+      </div>
       <button class="btn-primary" style="margin-top:14px" id="btn-upload" onclick="uploadFile()" disabled>Upload file</button>
     </div>
     <div class="modal-tab-content" id="tab-url">
       <div class="form-group">
         <label>URL</label>
         <input type="url" id="url-input" placeholder="https://example.com/article" oninput="validateUrl()">
+      </div>
+      <div class="form-group">
+        <label>Source Type</label>
+        <select id="url-source-type" style="width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);font-family:var(--font);font-size:13.5px;color:var(--text);background:var(--white);outline:none;">
+          <option value="document">📄 Document</option>
+          <option value="url">🌐 Web Article</option>
+          <option value="book">📚 Book</option>
+        </select>
       </div>
       <button class="btn-primary" id="btn-url" onclick="uploadUrl()" disabled>Add URL</button>
     </div>
@@ -571,6 +662,18 @@ header {
       Anyone with the link can view this notebook and chat with the sources (read-only).
     </p>
     <div id="share-modal-content"></div>
+  </div>
+</div>
+
+<!-- Podcast Script Modal -->
+<div class="modal-overlay" id="script-modal">
+  <div class="modal" style="width:680px;max-width:96vw">
+    <button class="modal-close" onclick="closePodcastScriptModal()">✕</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h2 style="margin:0">📜 Podcast Script</h2>
+      <a id="script-modal-download" href="#" download style="font-size:12px;color:var(--green);font-weight:600;text-decoration:none">⬇ Download .md</a>
+    </div>
+    <div id="script-modal-body" style="max-height:65vh;overflow-y:auto;font-size:13px;line-height:1.6"></div>
   </div>
 </div>
 
@@ -617,11 +720,20 @@ function toast(msg, type='info', duration=3000) {
   setTimeout(() => el.remove(), duration);
 }
 function getSourceIcon(src) {
-  if (src.type === 'url') return '🌐';
+  const st = src.source_type || src.type;
+  if (st === 'book') return '📚';
+  if (st === 'brandbook') return '🎨';
+  if (src.type === 'url' || st === 'url') return '🌐';
   const n = (src.name||'').toLowerCase();
   if (n.endsWith('.pdf')) return '📄';
   if (n.endsWith('.docx')||n.endsWith('.doc')) return '📝';
   return '📃';
+}
+function getSourceTypeBadge(src) {
+  const st = src.source_type;
+  if (!st || st === 'document') return '';
+  const labels = {book:'Book', brandbook:'Brandbook', url:'URL', youtube:'YouTube'};
+  return `<span class="source-type-badge ${st}">${labels[st]||st}</span>`;
 }
 function toggleLang() {
   currentLang = currentLang === 'en' ? 'ru' : 'en';
@@ -805,8 +917,10 @@ function renderSources() {
   }
   el.innerHTML = state.sources.map(src => {
     const polling = state.pollingIds.has(src.id);
+    const badge = getSourceTypeBadge(src);
     return `
-    <div class="source-item ${state.activeSids.has(src.id)?'selected':''}" data-id="${src.id}">
+    <div class="source-item ${state.activeSids.has(src.id)?'selected':''}" data-id="${src.id}"
+         onclick="selectSourceItem('${src.id}')">
       <input type="checkbox" class="source-check" ${state.activeSids.has(src.id)?'checked':''}
         onchange="toggleSource('${src.id}',this.checked)" onclick="event.stopPropagation()">
       <span class="source-icon">${getSourceIcon(src)}</span>
@@ -815,6 +929,7 @@ function renderSources() {
         <div class="source-meta">
           <span class="status-dot ${src.status}"></span>
           <span>${src.status}</span>
+          ${badge}
           ${polling?'<span class="studio-spinner" style="width:10px;height:10px;margin-left:4px"></span>':''}
         </div>
       </div>
@@ -884,6 +999,7 @@ async function uploadFile() {
   const fd = new FormData();
   fd.append('file', selectedFile);
   fd.append('lang', genLang);
+  fd.append('source_type', document.getElementById('upload-source-type').value || 'document');
   try {
     const res = await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`, {method:'POST',body:fd});
     const data = await res.json();
@@ -906,6 +1022,7 @@ async function uploadUrl() {
   const fd = new FormData();
   fd.append('url', url);
   fd.append('lang', genLang);
+  fd.append('source_type', document.getElementById('url-source-type').value || 'document');
   try {
     const res = await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`, {method:'POST',body:fd});
     const data = await res.json();
@@ -1115,15 +1232,313 @@ function renderMarkdown(md) {
   return '<p>'+s+'</p>'.replace(/<p><\/p>/g,'');
 }
 
+// ── Panel tab switching (Chat / Knowledge Map) ─────────────────
+function switchPanelTab(tab) {
+  const chatView = document.getElementById('chat-messages');
+  const chatInput = document.getElementById('chat-input-area');
+  const mapView = document.getElementById('panel-map');
+  const btnChat = document.getElementById('tab-chat-btn');
+  const btnMap = document.getElementById('tab-map-btn');
+  if (tab === 'chat') {
+    chatView.style.display = '';
+    chatInput.style.display = '';
+    mapView.style.display = 'none';
+    btnChat.classList.add('active');
+    btnMap.classList.remove('active');
+  } else {
+    chatView.style.display = 'none';
+    chatInput.style.display = 'none';
+    mapView.style.display = 'flex';
+    btnChat.classList.remove('active');
+    btnMap.classList.add('active');
+  }
+}
+
+// ── Chapter tree ───────────────────────────────────────────────
+let activeSourceForChapters = null;
+
+function selectSourceItem(sid) {
+  const src = state.sources.find(s => s.id === sid);
+  if (!src) return;
+  if (src.source_type === 'book' && src.status === 'ready') {
+    showChapterTree(src);
+  } else {
+    hideChapterTree();
+  }
+}
+
+function hideChapterTree() {
+  document.getElementById('chapter-tree').style.display = 'none';
+  activeSourceForChapters = null;
+}
+
+async function showChapterTree(src) {
+  activeSourceForChapters = src.id;
+  // Fetch full source data including chapters
+  let chapters = src.chapters;
+  if (!chapters) {
+    try {
+      const res = await fetch(`/api/notebooks/${state.currentNbId}/sources/${src.id}`);
+      const full = await res.json();
+      chapters = full.chapters;
+      // update in state
+      const idx = state.sources.findIndex(s => s.id === src.id);
+      if (idx !== -1) state.sources[idx] = {...state.sources[idx], chapters};
+    } catch(e) { chapters = []; }
+  }
+  const treeEl = document.getElementById('chapter-tree');
+  const listEl = document.getElementById('chapter-tree-list');
+  if (!chapters || !chapters.length) {
+    treeEl.style.display = 'none';
+    return;
+  }
+  treeEl.style.display = 'block';
+  listEl.innerHTML = chapters.map((ch, i) => `
+    <div class="chapter-item" id="chapter-item-${i}" onclick="openChapterDetail(${i})">
+      <div class="chapter-title">${escHtml(ch.title || `Chapter ${i+1}`)}</div>
+      ${ch.summary ? `<div class="chapter-summary">${escHtml(ch.summary.slice(0,120))}…</div>` : ''}
+    </div>`).join('');
+}
+
+function openChapterDetail(idx) {
+  // Highlight active chapter
+  document.querySelectorAll('.chapter-item').forEach((el,i) =>
+    el.classList.toggle('active', i === idx));
+  // Auto-fill chat with chapter question
+  const src = state.sources.find(s => s.id === activeSourceForChapters);
+  if (!src || !src.chapters) return;
+  const ch = src.chapters[idx];
+  if (ch) {
+    document.getElementById('chat-input').value =
+      `Расскажи подробно о главе "${ch.title}"`;
+    switchPanelTab('chat');
+    document.getElementById('chat-input').focus();
+  }
+}
+
+// ── Knowledge Map (D3 force graph) ────────────────────────────
+let knowledgeMapData = null;
+
+async function analyzeLinks() {
+  const sids = Array.from(state.activeSids);
+  if (sids.length < 2) { toast('Выбери минимум 2 источника', 'error'); return; }
+  const statusEl = document.getElementById('links-status');
+  statusEl.textContent = '⏳ Анализирую связи…';
+  try {
+    const res = await fetch(`/api/notebooks/${state.currentNbId}/analyze_links`, {method:'POST'});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Ошибка анализа');
+    statusEl.textContent = `🔄 Анализ запущен для ${data.source_count} источников…`;
+    // Poll for results
+    pollLinks();
+  } catch(e) {
+    statusEl.textContent = '⚠️ ' + e.message;
+  }
+}
+
+async function pollLinks() {
+  const statusEl = document.getElementById('links-status');
+  let attempts = 0;
+  const poll = async () => {
+    attempts++;
+    try {
+      const nbRes = await fetch(`/api/notebooks/${state.currentNbId}`);
+      const nb = await nbRes.json();
+      if (nb.links_status === 'ready') {
+        const linksRes = await fetch(`/api/notebooks/${state.currentNbId}/links`);
+        const data = await linksRes.json();
+        knowledgeMapData = data.links || [];
+        statusEl.textContent = `✅ ${knowledgeMapData.length} связей найдено`;
+        renderKnowledgeMap();
+        return;
+      } else if (nb.links_status === 'error') {
+        statusEl.textContent = '⚠️ Ошибка анализа: ' + (nb.links_error || '');
+        return;
+      }
+      if (attempts < 30) setTimeout(poll, 3000);
+      else statusEl.textContent = '⏱️ Анализ занимает много времени, обновите страницу позже';
+    } catch(e) {
+      if (attempts < 30) setTimeout(poll, 3000);
+    }
+  };
+  setTimeout(poll, 3000);
+}
+
+function renderKnowledgeMap() {
+  const links = knowledgeMapData || [];
+  const svg = document.getElementById('knowledge-map-svg');
+  const container = document.getElementById('knowledge-map-container');
+  const W = container.clientWidth || 600;
+  const H = container.clientHeight || 400;
+
+  // Clear
+  svg.innerHTML = '';
+  if (!links.length) {
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="#94a3b8" font-size="14">Связи не найдены</text>`;
+    return;
+  }
+
+  // Build nodes from unique sources
+  const nodeMap = {};
+  links.forEach(l => {
+    if (!nodeMap[l.source_a_id]) nodeMap[l.source_a_id] = {id: l.source_a_id, name: l.source_a_name||l.source_a_id};
+    if (!nodeMap[l.source_b_id]) nodeMap[l.source_b_id] = {id: l.source_b_id, name: l.source_b_name||l.source_b_id};
+  });
+  // Also add selected sources not in links
+  Array.from(state.activeSids).forEach(sid => {
+    if (!nodeMap[sid]) {
+      const src = state.sources.find(s => s.id === sid);
+      if (src) nodeMap[sid] = {id: sid, name: src.name};
+    }
+  });
+  const nodes = Object.values(nodeMap);
+
+  const linkColors = {confirms:'#22c55e', contradicts:'#ef4444', develops:'#3b82f6', illustrates:'#f59e0b'};
+
+  // Use D3 force simulation
+  const d3links = links.map(l => ({
+    source: l.source_a_id, target: l.source_b_id,
+    type: l.link_type, confidence: l.confidence || 0.5,
+    explanation: l.explanation || ''
+  }));
+
+  const simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(d3links).id(d => d.id).distance(120))
+    .force('charge', d3.forceManyBody().strength(-300))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide(50));
+
+  const svgEl = d3.select(svg)
+    .attr('width', W).attr('height', H);
+
+  // Defs for arrowheads per type
+  const defs = svgEl.append('defs');
+  Object.entries(linkColors).forEach(([type, color]) => {
+    defs.append('marker')
+      .attr('id', `arrow-${type}`)
+      .attr('viewBox', '0 -5 10 10').attr('refX', 28).attr('refY', 0)
+      .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+      .append('path').attr('fill', color).attr('d', 'M0,-5L10,0L0,5');
+  });
+
+  const linkEls = svgEl.append('g').selectAll('line')
+    .data(d3links).enter().append('line')
+    .attr('stroke', d => linkColors[d.type] || '#94a3b8')
+    .attr('stroke-width', d => 1 + (d.confidence * 2))
+    .attr('stroke-opacity', 0.7)
+    .attr('marker-end', d => `url(#arrow-${d.type})`)
+    .append('title').text(d => `${d.type}: ${d.explanation}`);
+
+  const linkLabels = svgEl.append('g').selectAll('text')
+    .data(d3links).enter().append('text')
+    .attr('font-size', 9).attr('fill', d => linkColors[d.type]||'#94a3b8')
+    .attr('text-anchor', 'middle').text(d => d.type);
+
+  // Node groups
+  const nodeEls = svgEl.append('g').selectAll('g')
+    .data(nodes).enter().append('g')
+    .call(d3.drag()
+      .on('start', (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (event, d) => { d.fx=event.x; d.fy=event.y; })
+      .on('end',   (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  nodeEls.append('circle')
+    .attr('r', 24).attr('fill', '#50B848').attr('stroke', '#fff').attr('stroke-width', 2)
+    .append('title').text(d => d.name);
+
+  nodeEls.append('text')
+    .attr('text-anchor','middle').attr('dy','0.35em')
+    .attr('font-size', 9).attr('fill','#fff').attr('font-weight','600')
+    .text(d => (d.name||'').slice(0,12));
+
+  simulation.on('tick', () => {
+    svgEl.selectAll('line')
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    linkLabels
+      .attr('x', d => ((d.source.x||0)+(d.target.x||0))/2)
+      .attr('y', d => ((d.source.y||0)+(d.target.y||0))/2 - 5);
+    nodeEls.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+}
+
+// ── Podcast chapter generation ─────────────────────────────────
+async function generateChapterPodcasts() {
+  const sids = Array.from(state.activeSids);
+  const readySids = sids.filter(sid => {
+    const s = state.sources.find(x => x.id === sid);
+    return s && s.status === 'ready';
+  });
+  // Find first book source
+  const bookSrc = state.sources.find(s => readySids.includes(s.id) && s.source_type === 'book');
+  if (!bookSrc) { toast('Выбери источник типа "Книга"', 'error'); return; }
+
+  // Fetch chapters if not loaded
+  let chapters = bookSrc.chapters;
+  if (!chapters) {
+    try {
+      const res = await fetch(`/api/notebooks/${state.currentNbId}/sources/${bookSrc.id}`);
+      const full = await res.json();
+      chapters = full.chapters || [];
+    } catch(e) { chapters = []; }
+  }
+  if (!chapters.length) { toast('Главы не найдены. Убедись что источник обработан как книга.', 'error'); return; }
+
+  const btnRow = document.getElementById('sbr-podcast_chapters');
+  const resultEl = document.getElementById('result-podcast_chapters');
+  const contentEl = document.getElementById('content-podcast_chapters');
+  const label = btnRow.querySelector('.sbr-label');
+  const arrow = btnRow.querySelector('.sbr-arrow');
+
+  btnRow.style.pointerEvents = 'none';
+  label.innerHTML = `<span class="studio-spinner"></span> Генерирую…`;
+  arrow.style.display = 'none';
+  resultEl.classList.remove('visible');
+  contentEl.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text3)">Генерирую подкасты для ${chapters.length} глав…</div>`;
+  resultEl.classList.add('visible');
+
+  const items = [];
+  for (let i = 0; i < Math.min(chapters.length, 12); i++) {
+    contentEl.innerHTML = `<div style="padding:8px;font-size:12px;color:var(--text3)">⏳ Глава ${i+1}/${Math.min(chapters.length,12)}…</div>`;
+    try {
+      const res = await fetch(
+        `/api/notebooks/${state.currentNbId}/sources/${bookSrc.id}/generate/podcast_chapter/${i}?lang=${genLang}`,
+        {method:'POST'}
+      );
+      const data = await res.json();
+      if (res.ok) {
+        items.push({title: data.chapter_title || `Глава ${i+1}`, url: data.url});
+      }
+    } catch(e) { /* skip chapter on error */ }
+  }
+
+  label.textContent = 'Podcast by Chapters';
+  arrow.style.display = '';
+  btnRow.style.pointerEvents = '';
+  btnRow.classList.add('open');
+
+  if (!items.length) {
+    contentEl.innerHTML = '<div style="padding:8px;font-size:12px;color:#ef4444">Не удалось сгенерировать подкасты</div>';
+    return;
+  }
+  contentEl.innerHTML = items.map((it, i) => `
+    <div style="margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">${escHtml(it.title)}</div>
+      <audio controls style="width:100%"><source src="${it.url}?t=${Date.now()}" type="audio/mpeg"></audio>
+    </div>`).join('');
+  toast(`${items.length} подкастов готово!`, 'success');
+}
+
 // ── Studio ─────────────────────────────────────────────────────
 function resetStudio() {
-  const types = ['audio','mindmap','infographic','presentation','studyguide','faq','briefing','timeline','glossary'];
+  const types = ['audio','podcast_full','podcast_chapters','mindmap','infographic','presentation','studyguide','faq','briefing','timeline','glossary'];
   types.forEach(t => {
     const r = document.getElementById(`result-${t}`); if (r) r.classList.remove('visible');
     const c = document.getElementById(`content-${t}`); if (c) c.innerHTML = '';
     const b = document.getElementById(`sbr-${t}`); if (b) b.classList.remove('open','loading');
   });
   state.generatingStudio.clear();
+  hideChapterTree();
 }
 
 async function studioGenerate(type) {
@@ -1167,6 +1582,12 @@ async function studioGenerate(type) {
 
     if (type==='audio') {
       contentEl.innerHTML=`<audio controls style="width:100%"><source src="${resData.url}" type="audio/mpeg">Your browser does not support audio.</audio>`;
+    } else if (type==='podcast_full') {
+      const podSid = readySids.length === 1 ? readySids[0] : null;
+      contentEl.innerHTML=`
+        <audio controls style="width:100%;margin-bottom:8px"><source src="${resData.url}" type="audio/mpeg">Your browser does not support audio.</audio>
+        ${podSid ? `<button onclick="showPodcastScript('${podSid}')" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);cursor:pointer;font-size:12px;font-weight:600;color:var(--text2)">📜 Read Script</button>` : ''}
+      `;
     } else if (type==='mindmap'||type==='infographic') {
       contentEl.innerHTML=`<img class="img-thumb" src="${resData.url}?t=${Date.now()}" alt="${type}" onclick="openLightbox('${resData.url}')">`;
     } else if (type==='presentation') {
@@ -1184,6 +1605,37 @@ async function studioGenerate(type) {
   }
 }
 
+// ── Podcast script viewer ──────────────────────────────────────
+async function showPodcastScript(sid) {
+  try {
+    const res = await fetch(`/api/notebooks/${state.currentNbId}/sources/${sid}/podcast_script`);
+    if (!res.ok) { toast('Script not available yet', 'error'); return; }
+    const data = await res.json();
+    document.getElementById('script-modal-body').innerHTML = renderPodcastScript(data.content || '');
+    document.getElementById('script-modal-download').href = data.url || '#';
+    document.getElementById('script-modal').classList.add('open');
+  } catch(e) { toast('Failed to load script', 'error'); }
+}
+
+function renderPodcastScript(text) {
+  // Highlight Host 1 / Host 2 / Ведущий 1 / Ведущий 2 lines
+  const lines = text.split('\n');
+  return lines.map(line => {
+    const m = line.match(/^(Host 1|Ведущий 1):\s*(.*)/);
+    const m2 = line.match(/^(Host 2|Ведущий 2):\s*(.*)/);
+    if (m) return `<div style="margin:6px 0;padding:6px 10px;background:var(--green-light);border-left:3px solid var(--green);border-radius:0 6px 6px 0"><strong style="color:var(--green-dark);font-size:11px">${escHtml(m[1])}</strong><br><span style="font-size:13px;color:var(--text)">${escHtml(m[2])}</span></div>`;
+    if (m2) return `<div style="margin:6px 0;padding:6px 10px;background:#f0f4ff;border-left:3px solid #6366f1;border-radius:0 6px 6px 0"><strong style="color:#4f46e5;font-size:11px">${escHtml(m2[1])}</strong><br><span style="font-size:13px;color:var(--text)">${escHtml(m2[2])}</span></div>`;
+    if (line.startsWith('#')) return `<div style="font-weight:700;font-size:14px;margin:12px 0 4px;color:var(--text)">${escHtml(line.replace(/^#+\s*/,''))}</div>`;
+    if (line.trim() === '---') return '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">';
+    if (line.trim()) return `<div style="font-size:12px;color:var(--text3);margin:2px 0">${escHtml(line)}</div>`;
+    return '';
+  }).join('');
+}
+
+function closePodcastScriptModal() {
+  document.getElementById('script-modal').classList.remove('open');
+}
+
 // ── Lightbox ───────────────────────────────────────────────────
 function openLightbox(src) {
   document.getElementById('lightbox-img').src=src;
@@ -1193,7 +1645,10 @@ function closeLightbox() { document.getElementById('lightbox').classList.remove(
 
 // ── Keyboard shortcuts ─────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key==='Escape') { closeLightbox(); closeAddModal(); closeShareModal(); closeCreateModal(); }
+  if (e.key==='Escape') { closeLightbox(); closeAddModal(); closeShareModal(); closeCreateModal(); closePodcastScriptModal(); }
+});
+document.getElementById('script-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('script-modal')) closePodcastScriptModal();
 });
 document.getElementById('share-modal').addEventListener('click', e => { if(e.target===document.getElementById('share-modal'))closeShareModal(); });
 
