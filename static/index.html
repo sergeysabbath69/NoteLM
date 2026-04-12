@@ -1319,11 +1319,32 @@ async function _pollSource(sid) {
     if (!res.ok){ state.pollingIds.delete(sid); return; }
     const src = await res.json();
     const idx = state.sources.findIndex(s=>s.id===sid);
+    const prevStatus = idx!==-1 ? state.sources[idx].status : null;
     if (idx!==-1) state.sources[idx]=src; else state.sources.push(src);
-    if (src.status==='ready'){ state.activeSids.add(sid); state.pollingIds.delete(sid); }
-    else if (src.status==='error'){ state.pollingIds.delete(sid); }
-    else { setTimeout(()=>_pollSource(sid),2500); }
-    renderSources();
+    if (src.status==='ready'){
+      state.activeSids.add(sid);
+      state.pollingIds.delete(sid);
+      // Flash "just processed" highlight on source card
+      renderSources();
+      setTimeout(()=>{
+        const card = document.querySelector(`.source-item[data-id="${sid}"]`);
+        if (card) {
+          card.style.transition='background 0.3s';
+          card.style.background='rgba(62,207,142,0.12)';
+          setTimeout(()=>{ card.style.background=''; }, 1500);
+        }
+      }, 50);
+      // Restore any already-generated results + show toast
+      restoreStudioResults(sid);
+      if (prevStatus && prevStatus!=='ready') toast('✓ ' + (src.name||'Source') + ' ready', 'success');
+    } else if (src.status==='error'){
+      state.pollingIds.delete(sid);
+      renderSources();
+      toast('⚠ Processing failed: ' + (src.name||'source'), 'error');
+    } else {
+      renderSources();
+      setTimeout(()=>_pollSource(sid), 2000);
+    }
   } catch(e){ state.pollingIds.delete(sid); }
 }
 function renderSources() {
