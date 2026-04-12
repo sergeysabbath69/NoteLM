@@ -264,21 +264,72 @@ _LIGHT  = "#F8FAFC"
 _MUTED  = "#94A3B8"
 
 
+def _gen_rich_slide_content(source: dict, lang: str = 'ru') -> dict:
+    """Use Gemini to generate rich, structured slide content for a presentation."""
+    a = source.get("analysis") or {}
+    content = source.get("content", "")[:20000]
+    name = source.get("name", "Document")
+    lang_instruction = (
+        "RESPOND ENTIRELY IN RUSSIAN LANGUAGE. All JSON values in Russian."
+        if lang == "ru" else "RESPOND ENTIRELY IN ENGLISH LANGUAGE. All JSON values in English."
+    )
+    prompt = f"""{lang_instruction}
+
+You are a world-class presentation designer. Create rich, compelling slide content for a professional presentation about "{name}".
+
+Source analysis:
+- Summary: {a.get('summary', '')[:1000]}
+- Key points: {json.dumps(a.get('key_points', [])[:10], ensure_ascii=False)}
+- Topics: {json.dumps([{{'title': t.get('title',''), 'description': t.get('description',''), 'points': t.get('points',[])[:4]}} for t in a.get('topics', [])[:6]], ensure_ascii=False)}
+- Notable quotes: {json.dumps(a.get('notable_quotes', [])[:5], ensure_ascii=False)}
+- Entities: {json.dumps(a.get('entities', {{}}), ensure_ascii=False)}
+- Sentiment: {a.get('sentiment', 'neutral')}
+
+Content excerpt: {content[:5000]}
+
+Generate presentation content as JSON. Make it RICH, SPECIFIC, and NON-GENERIC.
+Each slide should have a compelling headline, substantive body content, and concrete details.
+
+Return ONLY valid JSON (no markdown fences):
+{{
+  "title": "Compelling presentation title",
+  "subtitle": "Engaging one-line subtitle",
+  "executive_summary": "2-3 sentence executive summary that hooks the audience",
+  "key_insight": "Single most important insight from the document",
+  "slides": [
+    {{
+      "title": "Slide title (punchy, max 8 words)",
+      "type": "insight",
+      "headline": "Bold claim or key finding",
+      "body": "2-3 sentences of substantive explanation with specific details",
+      "bullets": ["Specific point with data/evidence", "Another concrete finding", "Third key element"],
+      "stat": "Key statistic or number if available",
+      "accent_color": "#6366F1"
+    }}
+  ],
+  "conclusion": "Memorable closing statement",
+  "call_to_action": "What the audience should do or think about"
+}}
+
+Generate 6-8 slides covering: overview, key findings (2-3 slides), deep insights, implications, conclusion.
+Each slide must have unique, specific content from the document — NO generic placeholders."""
+
+    try:
+        return _gemini_json(prompt, quality='high')
+    except Exception:
+        return {}
+
+
 def gen_presentation(source: dict, out: Path, lang: str = 'ru') -> None:
     a = source.get("analysis") or {}
+    name = source.get("name", "Untitled")
+
+    # Generate rich AI content
+    rich = _gen_rich_slide_content(source, lang)
+
     prs = PptxPresentation()
     prs.slide_width  = Inches(13.33)
     prs.slide_height = Inches(7.5)
-
-    titles = {
-        "ru": {"overview": "AI-Generated Обзор исследования", "summary": "Резюме",
-               "key_points": "Ключевые моменты", "entities": "Ключевые сущности",
-               "quotes": "Примечательные цитаты"},
-        "en": {"overview": "AI-Generated Research Overview", "summary": "Summary",
-               "key_points": "Key Points", "entities": "Key Entities",
-               "quotes": "Notable Quotes"},
-    }
-    t = titles.get(lang, titles["ru"])
 
     def _blank():
         return prs.slides.add_slide(prs.slide_layouts[6])
@@ -288,7 +339,10 @@ def gen_presentation(source: dict, out: Path, lang: str = 'ru') -> None:
         c = named.get(str(color).lower(), color).lstrip('#')
         if len(c) == 3:
             c = c[0]*2 + c[1]*2 + c[2]*2
-        return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        try:
+            return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        except Exception:
+            return 99, 102, 241  # fallback accent
 
     def _bg(slide, color: str):
         bg = slide.background; fill = bg.fill; fill.solid()
@@ -296,15 +350,31 @@ def gen_presentation(source: dict, out: Path, lang: str = 'ru') -> None:
         fill.fore_color.rgb = RGBColor(r, g, b)
 
     def _txt(slide, text, left, top, width, height,
-             bold=False, size=18, color="#0F172A", align="LEFT"):
+             bold=False, size=18, color="#0F172A", align="LEFT", italic=False):
         from pptx.enum.text import PP_ALIGN
         box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
         tf = box.text_frame; tf.word_wrap = True
-        p = tf.paragraphs[0]; p.text = text
-        p.font.bold = bold; p.font.size = Pt(size)
+        p = tf.paragraphs[0]; p.text = str(text)
+        p.font.bold = bold; p.font.size = Pt(size); p.font.italic = italic
         r, g, b = _parse_color(color)
         p.font.color.rgb = RGBColor(r, g, b)
         p.alignment = {"LEFT": PP_ALIGN.LEFT, "CENTER": PP_ALIGN.CENTER, "RIGHT": PP_ALIGN.RIGHT}.get(align, PP_ALIGN.LEFT)
+        return box
+
+    def _txt_multiline(slide, lines, left, top, width, height,
+                       bold=False, size=14, color="#0F172A"):
+        from pptx.enum.text import PP_ALIGN
+        box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+        tf = box.text_frame; tf.word_wrap = True
+        for i, line in enumerate(lines):
+            if i == 0:
+                p = tf.paragraphs[0]
+            else:
+                p = tf.add_paragraph()
+            p.text = str(line); p.font.size = Pt(size); p.font.bold = bold
+            r, g, b = _parse_color(color)
+            p.font.color.rgb = RGBColor(r, g, b)
+            p.space_after = Pt(4)
         return box
 
     def _rect(slide, left, top, width, height, color):
@@ -314,62 +384,170 @@ def gen_presentation(source: dict, out: Path, lang: str = 'ru') -> None:
         shape.line.fill.background()
         return shape
 
+    def _rounded_rect(slide, left, top, width, height, color, corner_size=0.1):
+        from pptx.util import Emu
+        r, g, b = _parse_color(color)
+        # Use rounded rectangle shape (MSO_SHAPE.ROUNDED_RECTANGLE = 5)
+        shape = slide.shapes.add_shape(5, Inches(left), Inches(top), Inches(width), Inches(height))
+        shape.fill.solid(); shape.fill.fore_color.rgb = RGBColor(r, g, b)
+        shape.line.fill.background()
+        return shape
+
+    # ── Slide 1: Hero Title ───────────────────────────────────────────────────
     slide = _blank(); _bg(slide, _DARK)
-    _rect(slide, 0, 3.2, 13.33, 0.06, _ACCENT)
-    _txt(slide, source.get("name", "Untitled"), 0.8, 1.2, 11.7, 2.0, bold=True, size=40, color=_LIGHT)
-    _txt(slide, t["overview"], 0.8, 3.5, 10, 0.6, size=20, color=_MUTED)
-    _txt(slide, datetime.now().strftime("%B %d, %Y"), 0.8, 4.3, 6, 0.5, size=16, color=_MUTED)
+    # Gradient-like accent bar at top
+    _rect(slide, 0, 0, 13.33, 0.08, _ACCENT)
+    # Large decorative circle
+    _rounded_rect(slide, 10.5, 0.8, 2.2, 2.2, "#1E293B")
+    _txt(slide, "✦", 11.1, 1.05, 1.2, 1.0, bold=True, size=48, color=_ACCENT, align="CENTER")
 
-    slide = _blank(); _bg(slide, _LIGHT)
-    _rect(slide, 0, 0, 13.33, 1.1, _ACCENT)
-    _txt(slide, t["summary"], 0.6, 0.2, 12, 0.7, bold=True, size=28, color="white")
-    _txt(slide, textwrap.fill(a.get("summary", ""), 110)[:900], 0.6, 1.3, 12.1, 5.8, size=17, color=_DARK)
+    title_text = rich.get("title") or name
+    subtitle_text = rich.get("subtitle") or "AI-Generated Research Overview"
+    insight_text = rich.get("executive_summary") or rich.get("key_insight") or a.get("summary", "")[:200]
 
-    kps = a.get("key_points", [])
-    if kps:
-        slide = _blank(); _bg(slide, _LIGHT)
-        _rect(slide, 0, 0, 13.33, 1.1, "#4F46E5")
-        _txt(slide, t["key_points"], 0.6, 0.2, 12, 0.7, bold=True, size=28, color="white")
-        for i, pt in enumerate(kps[:7]):
-            y = 1.35 + i * 0.78
-            _rect(slide, 0.5, y, 0.35, 0.35, _ACCENT)
-            _txt(slide, str(i+1), 0.52, y-0.01, 0.3, 0.4, bold=True, size=14, color="white", align="CENTER")
-            _txt(slide, pt, 1.05, y-0.04, 11.7, 0.55, size=16, color=_DARK)
+    _txt(slide, title_text[:80], 0.7, 1.2, 9.5, 2.0, bold=True, size=36, color=_LIGHT)
+    _rect(slide, 0.7, 3.3, 4.0, 0.04, _ACCENT)
+    _txt(slide, subtitle_text[:100], 0.7, 3.55, 9.5, 0.6, size=18, color="#94A3B8")
+    _txt(slide, textwrap.fill(insight_text[:250], 90), 0.7, 4.35, 10.5, 1.5, size=14, color="#64748B", italic=True)
+    _txt(slide, datetime.now().strftime("%B %Y"), 0.7, 6.5, 4, 0.5, size=13, color=_MUTED)
 
-    for topic in a.get("topics", [])[:7]:
-        slide = _blank(); _bg(slide, _LIGHT)
-        _rect(slide, 0, 0, 0.18, 7.5, _ACCENT)
-        _txt(slide, topic.get("title", ""), 0.45, 0.3, 12.4, 0.9, bold=True, size=26, color=_DARK)
-        _rect(slide, 0.45, 1.25, 12.4, 0.04, "#E2E8F0")
-        _txt(slide, topic.get("description", ""), 0.45, 1.45, 12.2, 1.2, size=17, color=_MID)
-        for j, pt in enumerate(topic.get("points", [])[:5]):
-            _rect(slide, 0.45, 2.85+j*0.72, 0.06, 0.32, _ACCENT)
-            _txt(slide, pt, 0.7, 2.82+j*0.72, 12.1, 0.55, size=16, color=_DARK)
+    # ── Slide 2: Executive Summary ────────────────────────────────────────────
+    slide = _blank(); _bg(slide, "#0F172A")
+    _rect(slide, 0, 0, 0.06, 7.5, _ACCENT)
+    _rect(slide, 0, 0, 13.33, 1.1, "#1E293B")
+    summary_label = "Резюме" if lang == "ru" else "Executive Summary"
+    _txt(slide, summary_label, 0.4, 0.2, 12, 0.7, bold=True, size=28, color=_LIGHT)
 
+    summary_text = a.get("summary", "")
+    # Split into paragraphs for better layout
+    para1 = textwrap.fill(summary_text[:400], 95)
+    para2 = textwrap.fill(summary_text[400:750], 95) if len(summary_text) > 400 else ""
+
+    _txt(slide, para1, 0.4, 1.3, 12.4, 2.2, size=16, color="#CBD5E1")
+    if para2:
+        _txt(slide, para2, 0.4, 3.6, 12.4, 1.8, size=16, color="#94A3B8")
+
+    key_insight = rich.get("key_insight") or ""
+    if key_insight:
+        _rect(slide, 0.4, 5.6, 12.5, 1.4, "#1E3A5F")
+        _txt(slide, "💡 " + key_insight[:200], 0.7, 5.75, 12.0, 1.1, size=15, color="#93C5FD", bold=True)
+
+    # ── AI-Generated Rich Slides ──────────────────────────────────────────────
+    ai_slides = rich.get("slides", [])
+
+    if ai_slides:
+        for slide_data in ai_slides[:8]:
+            slide = _blank(); _bg(slide, _LIGHT)
+            slide_accent = slide_data.get("accent_color", _ACCENT)
+            try:
+                _parse_color(slide_accent)
+            except Exception:
+                slide_accent = _ACCENT
+
+            # Header bar
+            _rect(slide, 0, 0, 13.33, 1.15, slide_accent)
+            slide_title = slide_data.get("title", "")[:70]
+            _txt(slide, slide_title, 0.5, 0.15, 12.3, 0.85, bold=True, size=26, color="white")
+
+            # Headline - big bold claim
+            headline = slide_data.get("headline", "")
+            if headline:
+                _txt(slide, headline[:120], 0.5, 1.3, 12.3, 0.75, bold=True, size=20, color=_DARK)
+                _rect(slide, 0.5, 2.1, 12.3, 0.03, "#E2E8F0")
+
+            # Body text
+            body = slide_data.get("body", "")
+            body_y = 2.25 if headline else 1.35
+            if body:
+                _txt(slide, textwrap.fill(body[:350], 95), 0.5, body_y, 12.3, 1.4, size=15, color=_MID)
+
+            # Bullet points
+            bullets = slide_data.get("bullets", [])
+            bullet_y = body_y + (1.6 if body else 0.2)
+            for bi, bullet in enumerate(bullets[:5]):
+                y = bullet_y + bi * 0.7
+                if y > 7.0:
+                    break
+                _rounded_rect(slide, 0.5, y + 0.05, 0.28, 0.28, slide_accent)
+                _txt(slide, "→", 0.5, y + 0.02, 0.28, 0.3, bold=True, size=11, color="white", align="CENTER")
+                _txt(slide, str(bullet)[:140], 0.9, y, 11.8, 0.55, size=14, color=_DARK)
+
+            # Stat callout (if available and there's space)
+            stat = slide_data.get("stat", "")
+            if stat and not bullets:
+                _rounded_rect(slide, 4.5, 5.2, 4.3, 1.5, slide_accent)
+                _txt(slide, str(stat)[:60], 4.7, 5.3, 3.9, 1.1, bold=True, size=22, color="white", align="CENTER")
+
+    else:
+        # Fallback: use analysis data with improved layout
+        kps = a.get("key_points", [])
+        if kps:
+            slide = _blank(); _bg(slide, _LIGHT)
+            _rect(slide, 0, 0, 13.33, 1.15, "#4F46E5")
+            kp_label = "Ключевые моменты" if lang == "ru" else "Key Points"
+            _txt(slide, kp_label, 0.5, 0.2, 12, 0.75, bold=True, size=28, color="white")
+            for i, pt in enumerate(kps[:7]):
+                y = 1.35 + i * 0.78
+                _rounded_rect(slide, 0.5, y, 0.35, 0.35, _ACCENT)
+                _txt(slide, str(i+1), 0.52, y+0.01, 0.3, 0.33, bold=True, size=13, color="white", align="CENTER")
+                _txt(slide, str(pt)[:160], 1.0, y+0.01, 11.8, 0.55, size=15, color=_DARK)
+
+        for topic in a.get("topics", [])[:6]:
+            slide = _blank(); _bg(slide, _LIGHT)
+            _rect(slide, 0, 0, 0.18, 7.5, _ACCENT)
+            _txt(slide, topic.get("title", "")[:70], 0.45, 0.3, 12.4, 0.9, bold=True, size=26, color=_DARK)
+            _rect(slide, 0.45, 1.25, 12.4, 0.04, "#E2E8F0")
+            _txt(slide, topic.get("description", "")[:250], 0.45, 1.45, 12.2, 1.2, size=16, color=_MID)
+            for j, pt in enumerate(topic.get("points", [])[:5]):
+                _rect(slide, 0.45, 2.85+j*0.72, 0.06, 0.32, _ACCENT)
+                _txt(slide, str(pt)[:160], 0.7, 2.82+j*0.72, 12.1, 0.55, size=15, color=_DARK)
+
+    # ── Entities slide ────────────────────────────────────────────────────────
     ents = a.get("entities", {})
     if any(ents.values()):
         slide = _blank(); _bg(slide, _DARK)
-        _txt(slide, t["entities"], 0.6, 0.25, 12, 0.8, bold=True, size=28, color=_LIGHT)
-        for ci, (label, items, col) in enumerate([
-            ("People", ents.get("people",[]), "#818CF8"),
-            ("Organizations", ents.get("organizations",[]), "#34D399"),
-            ("Places", ents.get("places",[]), "#FB923C"),
-            ("Dates", ents.get("dates",[]), "#F472B6"),
+        _rect(slide, 0, 0, 13.33, 1.15, "#1E293B")
+        ent_label = "Ключевые сущности" if lang == "ru" else "Key Entities"
+        _txt(slide, ent_label, 0.5, 0.2, 12, 0.75, bold=True, size=28, color=_LIGHT)
+        for ci, (label_text, items, col) in enumerate([
+            ("People" if lang == "en" else "Люди", ents.get("people", []), "#818CF8"),
+            ("Organizations" if lang == "en" else "Организации", ents.get("organizations", []), "#34D399"),
+            ("Places" if lang == "en" else "Места", ents.get("places", []), "#FB923C"),
+            ("Dates" if lang == "en" else "Даты", ents.get("dates", []), "#F472B6"),
         ]):
-            x = 0.5 + ci * 3.2
-            _rect(slide, x, 1.2, 2.9, 0.5, col)
-            _txt(slide, label, x+0.1, 1.25, 2.7, 0.4, bold=True, size=14, color="white")
-            _txt(slide, "\n".join(f"• {it}" for it in items[:6]) or "—",
-                 x+0.1, 1.85, 2.8, 4.8, size=14, color=_MUTED)
+            x = 0.4 + ci * 3.2
+            _rounded_rect(slide, x, 1.25, 3.0, 0.52, col)
+            _txt(slide, label_text, x+0.12, 1.32, 2.75, 0.38, bold=True, size=14, color="white")
+            items_text = "\n".join(f"• {it}" for it in items[:7]) or "—"
+            _txt(slide, items_text, x+0.12, 1.9, 2.85, 4.9, size=13, color=_MUTED)
 
+    # ── Quotes slide ──────────────────────────────────────────────────────────
     quotes = a.get("notable_quotes", [])
     if quotes:
-        slide = _blank(); _bg(slide, "#1E293B")
-        _txt(slide, t["quotes"], 0.6, 0.2, 12, 0.8, bold=True, size=28, color=_LIGHT)
-        for qi, q in enumerate(quotes[:4]):
-            y = 1.3 + qi * 1.42
-            _rect(slide, 0.4, y, 0.06, 1.0, _ACCENT)
-            _txt(slide, f'"{q}"', 0.7, y, 11.9, 1.1, size=16, color="#CBD5E1")
+        slide = _blank(); _bg(slide, "#0F172A")
+        _rect(slide, 0, 0, 13.33, 0.06, _ACCENT)
+        quotes_label = "Примечательные цитаты" if lang == "ru" else "Notable Quotes"
+        _txt(slide, quotes_label, 0.6, 0.25, 12, 0.8, bold=True, size=28, color=_LIGHT)
+        for qi, q in enumerate(quotes[:3]):
+            y = 1.25 + qi * 1.9
+            _rect(slide, 0.4, y, 0.06, 1.55, _ACCENT)
+            _rounded_rect(slide, 0.6, y, 12.3, 1.55, "#1E293B")
+            _txt(slide, f'"{str(q)[:300]}"', 0.9, y + 0.15, 11.8, 1.2, size=15, color="#CBD5E1", italic=True)
+
+    # ── Conclusion slide ──────────────────────────────────────────────────────
+    slide = _blank(); _bg(slide, _DARK)
+    _rect(slide, 0, 7.3, 13.33, 0.2, _ACCENT)
+    conclusion_label = "Заключение" if lang == "ru" else "Conclusion"
+    _txt(slide, conclusion_label, 0.7, 0.9, 11.9, 0.8, bold=True, size=32, color=_LIGHT, align="CENTER")
+    _rect(slide, 4.5, 1.8, 4.33, 0.04, _ACCENT)
+
+    conclusion = rich.get("conclusion") or a.get("summary", "")[:300]
+    cta = rich.get("call_to_action", "")
+
+    _txt(slide, textwrap.fill(str(conclusion)[:400], 80), 1.2, 2.1, 10.9, 2.5, size=18, color="#CBD5E1", align="CENTER")
+    if cta:
+        _rounded_rect(slide, 2.5, 5.0, 8.33, 1.2, "#1E293B")
+        _txt(slide, str(cta)[:180], 2.8, 5.15, 7.7, 0.9, size=15, color=_ACCENT, align="CENTER", bold=True)
 
     prs.save(str(out))
 

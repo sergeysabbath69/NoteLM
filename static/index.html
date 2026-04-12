@@ -1304,6 +1304,8 @@ async function loadSources() {
       if ((s.status==='processing'||s.status==='pending')&&!state.pollingIds.has(s.id)) startPolling(s.id);
     });
     renderSources();
+    // Restore previously generated results for active sources
+    state.sources.forEach(s=>{ if (state.activeSids.has(s.id)) restoreStudioResults(s.id); });
   } catch(e){ console.error(e); }
 }
 function startPolling(sid) {
@@ -1354,7 +1356,8 @@ function renderSources() {
   }).join('');
 }
 function toggleSource(sid,checked) {
-  if (checked) state.activeSids.add(sid); else state.activeSids.delete(sid);
+  if (checked) { state.activeSids.add(sid); restoreStudioResults(sid); }
+  else state.activeSids.delete(sid);
   renderSources();
 }
 function selectAllSources(val) {
@@ -1810,6 +1813,39 @@ function resetStudio(){
     const b=document.getElementById(`sbr-${t}`); if(b) b.classList.remove('open','loading');
   });
   state.generatingStudio.clear(); hideChapterTree();
+}
+
+function restoreStudioResults(sid){
+  const src = state.sources.find(s=>s.id===sid);
+  if (!src||src.status!=='ready') return;
+
+  // Map of saved URL/content fields -> studio type -> how to render
+  const restorations = [
+    { key:'audio_url',          type:'audio',        render: url => `<audio controls style="width:100%"><source src="${url}" type="audio/mpeg"></audio>` },
+    { key:'podcast_full_url',   type:'podcast_full', render: url => `<audio controls style="width:100%;margin-bottom:8px"><source src="${url}" type="audio/mpeg"></audio><button onclick="showPodcastScript('${sid}')" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-active);cursor:pointer;font-size:12px;font-weight:500;color:var(--text-secondary);font-family:inherit">📜 Read Script</button>` },
+    { key:'infographic_url',    type:'infographic',  render: url => `<img class="img-thumb" src="${url}?t=${Date.now()}" alt="infographic" onclick="openLightbox('${url}')">` },
+    { key:'mindmap_url',        type:'mindmap',      render: url => `<img class="img-thumb" src="${url}?t=${Date.now()}" alt="mindmap" onclick="openLightbox('${url}')">` },
+    { key:'pptx_url',           type:'presentation', render: url => `<p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Ready!</p><a class="download-btn" href="${url}" download>⬇ Download PPTX</a>` },
+    { key:'study_guide',        type:'studyguide',   render: (_,content) => renderMarkdown(content) },
+    { key:'faq',                type:'faq',          render: (_,content) => renderMarkdown(content) },
+    { key:'briefing',           type:'briefing',     render: (_,content) => renderMarkdown(content) },
+    { key:'timeline',           type:'timeline',     render: (_,content) => renderMarkdown(content) },
+    { key:'glossary',           type:'glossary',     render: (_,content) => renderMarkdown(content) },
+  ];
+
+  restorations.forEach(({key, type, render})=>{
+    const val = src[key];
+    if (!val) return;
+    const resultEl  = document.getElementById(`result-${type}`);
+    const contentEl = document.getElementById(`content-${type}`);
+    const btnRow    = document.getElementById(`sbr-${type}`);
+    if (!resultEl||!contentEl) return;
+    // Determine if URL-based or content-based
+    const isUrl = key.endsWith('_url');
+    contentEl.innerHTML = isUrl ? render(val) : render(null, val);
+    resultEl.classList.add('visible');
+    if (btnRow) btnRow.classList.add('open');
+  });
 }
 
 const GEN_STEPS = {
