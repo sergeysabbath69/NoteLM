@@ -146,23 +146,43 @@ async def fetch_url(url: str) -> str:
 # Gemini helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _gemini(prompt: str) -> str:
+def _gemini(prompt: str, quality: str = 'high') -> str:
+    """quality='high' → gemini-3.1-pro-preview, 'fast' → gemini-2.5-flash"""
+    model = 'gemini-3.1-pro-preview' if quality == 'high' else 'gemini-2.5-flash'
     try:
-        resp = _client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        resp = _client.models.generate_content(model=model, contents=prompt)
         return resp.text.strip()
-    except Exception as gemini_err:
+    except Exception as e1:
+        # Fallback to flash if pro fails
+        if model != 'gemini-2.5-flash':
+            try:
+                resp = _client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+                return resp.text.strip()
+            except Exception as gemini_err:
+                pass
+        else:
+            gemini_err = e1
         if not MISTRAL_API_KEY:
             raise gemini_err
         headers = {"Authorization": f"Bearer {MISTRAL_API_KEY}", "Content-Type": "application/json"}
-        payload = {"model": "mistral-small-latest", "messages": [{"role": "user", "content": prompt}], "max_tokens": 4096}
-        resp = requests.post(MISTRAL_URL, headers=headers, json=payload, timeout=60)
+        payload = {"model": "mistral-medium-latest", "messages": [{"role": "user", "content": prompt}], "max_tokens": 8192}
+        resp = requests.post(MISTRAL_URL, headers=headers, json=payload, timeout=90)
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
 
-def _gemini_json(prompt: str) -> dict | list:
-    raw = _gemini(prompt)
+def _gemini_json(prompt: str, quality: str = 'high') -> dict | list:
+    raw = _gemini(prompt, quality=quality)
     raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
     raw = re.sub(r"```\s*$", "", raw, flags=re.MULTILINE)
+    # Find JSON boundaries
+    for start_char, end_char in [('{', '}'), ('[', ']')]:
+        s = raw.find(start_char)
+        e = raw.rfind(end_char)
+        if s != -1 and e != -1:
+            try:
+                return json.loads(raw[s:e+1])
+            except Exception:
+                pass
     return json.loads(raw.strip())
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -637,7 +657,7 @@ The study guide MUST include all these sections:
 7. **Practice Activities** — 3 hands-on exercises with step-by-step instructions
 
 Format as clean markdown. Be thorough, detailed, and educational."""
-    return _gemini(prompt)
+    return _gemini(prompt, quality='high')
 
 
 def gen_faq(source: dict, lang: str = 'ru') -> str:
@@ -668,7 +688,7 @@ Format as markdown:
 **A:** [Detailed answer, 2-4 sentences minimum]
 
 Generate all 15-20 pairs. Do not skip any."""
-    return _gemini(prompt)
+    return _gemini(prompt, quality='high')
 
 
 def gen_briefing(source: dict, lang: str = 'ru') -> str:
@@ -710,7 +730,7 @@ Key statistics, quotes, or evidence with context and interpretation.
 
 Content: {content}
 Summary: {a.get('summary', '')}"""
-    return _gemini(prompt)
+    return _gemini(prompt, quality='high')
 
 
 def gen_timeline(source: dict, lang: str = 'ru') -> str:
@@ -740,7 +760,7 @@ Format as a markdown timeline:
 
 Include ALL dates, periods, and sequential events you can identify.
 After the table, add a **Narrative Summary** paragraph explaining the chronology in detail."""
-    return _gemini(prompt)
+    return _gemini(prompt, quality='high')
 
 
 def gen_glossary(source: dict, lang: str = 'ru') -> str:
@@ -764,7 +784,7 @@ For each term provide:
 **Term** — Clear, concise definition in plain language. Note context and importance if relevant.
 
 List terms alphabetically. Include at minimum 15-30 terms."""
-    return _gemini(prompt)
+    return _gemini(prompt, quality='high')
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1123,7 +1143,7 @@ Total: 2000–2500 words.
 Output ONLY the dialogue. No section headers, no stage directions, no parenthetical notes."""
 
     try:
-        script = _gemini(prompt)
+        script = _gemini(prompt, quality='high')
     except Exception:
         pts = deep.get('podcast_talking_points', []) or analysis.get('key_points', [])
         script = (
