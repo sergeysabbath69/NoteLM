@@ -2048,7 +2048,7 @@ ASSISTANT:"""
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "3.0.0",
+    return {"status": "ok", "version": "4.0.0",
             "notebooks": len(notebooks_db), "sources": len(sources_db)}
 
 @app.on_event("startup")
