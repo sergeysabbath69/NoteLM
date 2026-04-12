@@ -790,8 +790,8 @@ textarea#chat-input::placeholder { color: var(--text3); }
     <button class="modal-close" onclick="closeAddModal()">✕</button>
     <h2 data-i18n="addSource">Add source</h2>
     <div class="modal-tabs">
-      <button class="modal-tab active" onclick="switchModalTab('upload')" data-i18n="uploadFile">Upload file</button>
-      <button class="modal-tab" onclick="switchModalTab('url')" data-i18n="pasteUrl">Paste URL</button>
+      <button class="modal-tab active" onclick="switchTab('upload')" data-i18n="uploadFile">Upload file</button>
+      <button class="modal-tab" onclick="switchTab('url')" data-i18n="pasteUrl">Paste URL</button>
     </div>
     <div class="modal-tab-content active" id="tab-upload">
       <div class="drop-area" id="file-drop-area" onclick="document.getElementById('file-input').click()">
@@ -1129,7 +1129,7 @@ async function uploadFile() {
   btn.disabled=true; btn.textContent='Uploading…';
   const fd=new FormData();
   fd.append('file',selectedFile); fd.append('lang',genLang);
-  fd.append('source_type',document.getElementById('upload-source-type').value||'document');
+  fd.append('source_type',(document.getElementById('source-type-select')||{}).value||'document');
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`,{method:'POST',body:fd});
     const data=await res.json();
@@ -1146,7 +1146,7 @@ async function uploadUrl() {
   btn.disabled=true; btn.textContent='Adding…';
   const fd=new FormData();
   fd.append('url',url); fd.append('lang',genLang);
-  fd.append('source_type',document.getElementById('url-source-type').value||'document');
+  fd.append('source_type',(document.getElementById('source-type-select')||{}).value||'document');
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`,{method:'POST',body:fd});
     const data=await res.json();
