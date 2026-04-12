@@ -300,6 +300,24 @@ header {
 .status-dot { width: 5px; height: 5px; border-radius: 99px; flex-shrink: 0; display: inline-block; }
 .status-dot.ready      { background: var(--green); }
 .status-dot.processing { background: var(--yellow); animation: pulse-dot 1.2s infinite; }
+.status-dot.uploading  { background: var(--accent); animation: pulse-dot 0.8s infinite; }
+
+/* Progress bar under source item */
+.source-progress {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  background: var(--border);
+  overflow: hidden; border-radius: 0 0 0 0;
+}
+.source-progress-bar {
+  height: 100%; width: 40%;
+  background: var(--accent);
+  animation: progress-slide 1.2s ease-in-out infinite;
+  border-radius: 1px;
+}
+@keyframes progress-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
 .status-dot.pending    { background: var(--text-tertiary); }
 .status-dot.error      { background: var(--red); }
 @keyframes pulse-dot { 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
@@ -1315,7 +1333,10 @@ function renderSources() {
   el.innerHTML = state.sources.map(src=>{
     const polling = state.pollingIds.has(src.id);
     const badge = getSourceTypeBadge(src);
-    return `<div class="source-item ${state.activeSids.has(src.id)?'selected':''}" data-id="${src.id}" onclick="selectSourceItem('${src.id}')">
+    const isActive = ['uploading','processing','pending'].includes(src.status);
+    const statusLabels = {ready:'Ready', processing:'Processing…', pending:'Processing…', uploading:'Uploading…', error:'Error'};
+    const statusLabel = statusLabels[src.status] || src.status;
+    return `<div class="source-item ${state.activeSids.has(src.id)?'selected':''}" data-id="${src.id}" onclick="selectSourceItem('${src.id}')" style="position:relative">
       <input type="checkbox" class="source-check" ${state.activeSids.has(src.id)?'checked':''}
         onchange="toggleSource('${src.id}',this.checked)" onclick="event.stopPropagation()">
       <div class="source-icon-wrap">${getSourceIcon(src)}</div>
@@ -1323,12 +1344,12 @@ function renderSources() {
         <div class="source-name" title="${escHtml(src.name)}">${escHtml(src.name)}</div>
         <div class="source-meta">
           <span class="status-dot ${src.status}"></span>
-          <span>${src.status}</span>
+          <span style="font-size:11px;color:var(--text3)">${statusLabel}</span>
           ${badge}
-          ${polling?'<span class="source-spinner"></span>':''}
         </div>
       </div>
       <button class="source-delete" onclick="deleteSource('${src.id}',event)" title="Delete">×</button>
+      ${isActive ? '<div class="source-progress"><div class="source-progress-bar"></div></div>' : ''}
     </div>`;
   }).join('');
 }
@@ -1419,14 +1440,33 @@ async function uploadFile(){
   const fd=new FormData();
   fd.append('file',selectedFile); fd.append('lang',genLang);
   fd.append('source_type',document.getElementById('upload-source-type').value||'document');
+  // Optimistic UI: show placeholder immediately
+  const tempId = 'temp_' + Date.now();
+  const tempSource = {
+    id: tempId, name: selectedFile.name,
+    status: 'uploading', type: 'file', source_type: document.getElementById('upload-source-type').value||'document'
+  };
+  state.sources.unshift(tempSource);
+  renderSources();
+  closeAddModal();
+
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`,{method:'POST',body:fd});
     const data=await res.json();
     if (!res.ok) throw new Error(data.detail||'Upload failed');
-    closeAddModal(); await loadSources();
-    toast('Source added — processing…','success');
-    if (data.id) startPolling(data.id);
-  } catch(e){ toast(e.message,'error'); btn.disabled=false; btn.textContent='Upload file'; }
+    // Replace temp with real source
+    state.sources = state.sources.filter(s=>s.id!==tempId);
+    await loadSources();
+    if (data.id) {
+      state.activeSids.add(data.id);
+      startPolling(data.id);
+    }
+  } catch(e){
+    state.sources = state.sources.filter(s=>s.id!==tempId);
+    renderSources();
+    toast(e.message,'error');
+    btn.disabled=false; btn.textContent='Upload file';
+  }
 }
 async function uploadUrl(){
   const url=document.getElementById('url-input').value.trim();
