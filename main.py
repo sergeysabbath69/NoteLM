@@ -1095,23 +1095,45 @@ Material to work from:
 - Summary: {summary}
 - Key points: {key_points}
 
-CRITICAL STYLE RULES:
-- Hosts have GENUINE REACTIONS: surprise, skepticism, amusement, confusion
-- They DISAGREE sometimes and have to convince each other — not always resolved
-- They use SPECIFIC EXAMPLES and EXACT DETAILS from the material (not vague "as the author says")
-- Natural speech patterns: "Wait—", "Okay but—", "Hold on, that's—", "No no no, listen—"
-- Jokes emerge NATURALLY from content contradictions or surprisingly obvious/absurd facts
-- Each host has a DISTINCT VOICE that stays consistent throughout (one more skeptical, one more enthusiastic)
-- {"Russian informal register: 'слушай', 'погоди', 'это вообще-то', 'короче', 'ну и', 'да ладно'" if is_ru else "English informal: 'I mean', 'right?', 'okay so', 'hang on', 'actually wait'"}
-- 2000-2500 words MINIMUM. Do not cut corners.
-- NEVER use filler phrases like "great point!" or "absolutely!" — real people don't talk like that
-- When one host explains something, the other should react with their own interpretation, not just agree
+CRITICAL STYLE RULES — READ CAREFULLY:
+
+ENERGY & PACE:
+- This is a HIGH-ENERGY conversation. Both hosts are genuinely excited, curious, or provoked.
+- Short punchy exchanges. Fast back-and-forth. Don't let one person talk for more than 3 sentences.
+- Frequent interruptions, incomplete sentences cut off by the other: "Wait, but—" / "No, exactly! And—"
+- Enthusiasm is contagious — when one gets excited, the other catches it or pushes back harder.
+
+VOICE & CHARACTER:
+- {"Один ведущий — энтузиаст, говорит быстро, восклицает, перебивает. Второй — скептик, приземляет, говорит 'а зачем это вообще?' и 'ну это же очевидно, нет?'" if is_ru else "One host is an enthusiast — fast, excited, connecting dots everywhere. The other is a skeptic — grounding, questioning, 'but does this actually matter?'"}
+- {"Разговорный живой русский: 'это же вообще...', 'подожди подожди', 'нет ну серьёзно', 'это как будто', 'слушай а ведь', 'погоди а это значит что', 'блин', 'ну вот именно!'" if is_ru else "Casual English: 'okay okay okay', 'wait that's actually—', 'no but hang on', 'right?? like—', 'I mean come on', 'that's the part that gets me'"}
+- NEVER say "great point", "absolutely", "exactly right", "indeed" — these are robot words.
+
+HUMOR:
+- Jokes come from the MATERIAL ITSELF — absurd implications, unexpected connections, contradictions.
+- Self-deprecating moments: "I'm definitely going to misexplain this but—"
+- Exaggeration for effect: "So basically what they're saying is [hilariously oversimplified version]?"
+- One host should make at least 2-3 genuinely funny observations (not forced).
+
+SUBSTANCE:
+- Use EXACT quotes, numbers, names from the material — not vague paraphrasing.
+- At least one "wait so that means..." chain of logic that surprises even the host saying it.
+- They should DISAGREE on at least one interpretation and NOT resolve it.
+- 2000-2500 words MINIMUM. No cutting corners.
+
+FORBIDDEN:
+- No "welcome to our podcast"
+- No "today we're going to discuss"  
+- No "as we mentioned earlier"
+- No section breaks or headers
+- No summarizing what was just said
 
 Structure (15–20 min read):
 
-COLD OPEN (no greeting, no "welcome to our podcast"):
-One host drops a provocative, surprising, or counterintuitive statement pulled directly from the material.
-The other host reacts genuinely — confused, skeptical, or intrigued. NO "hello listeners".
+COLD OPEN — MAKE IT POP (no greeting whatsoever):
+Start MID-THOUGHT. One host drops the most provocative, weird, or counterintuitive thing from the material.
+It should feel like we caught them mid-conversation.
+{"Example: 'Ведущий 1: Слушай, вот ты знаешь что меня реально убило в этом? [provocative fact]. Ведущий 2: Подожди, что??'" if is_ru else "Example: 'Host 1: Okay so the thing that actually broke my brain— [provocative fact]. Host 2: Wait, what?'"}
+The opening must create immediate tension or curiosity. No setup, no context — throw us in.
 
 BLOCK 1 — What IS this actually? (400–500 words)
 They work out the core idea together. One might misframe it, the other corrects. Show the thinking, not the answer.
