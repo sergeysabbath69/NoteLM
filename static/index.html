@@ -1,842 +1,1131 @@
 <!DOCTYPE html>
-<html lang="ru" id="html-root">
+<html lang="en" id="html-root">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Knowledge Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0c0c0f;
-  --surface: #141417;
-  --surface2: #1c1c21;
-  --surface3: #222228;
-  --border: #26262e;
-  --border-sub: rgba(255,255,255,0.04);
-  --text: #ececed;
-  --text2: #8a8a99;
-  --text3: #484855;
-  --accent: #6366f1;
-  --accent-dim: rgba(99,102,241,0.1);
-  --accent-hover: rgba(99,102,241,0.18);
-  --green: #3ecf8e;
-  --yellow: #f0a429;
-  --red: #f55050;
-  --radius: 8px;
+  --bg:             #0c0c0e;
+  --surface:        #161618;
+  --surface-hover:  #1c1c1f;
+  --surface-active: #222226;
+  --border:         #2a2a30;
+  --border-subtle:  rgba(255,255,255,0.04);
+  --text-primary:   #ececed;
+  --text-secondary: #8b8b9a;
+  --text-tertiary:  #4d4d5d;
+  --accent:         #7c7cf0;
+  --accent-dim:     rgba(124,124,240,0.1);
+  --accent-hover:   rgba(124,124,240,0.16);
+  --green:   #3ecf8e;
+  --yellow:  #f0a429;
+  --red:     #f55;
+  --radius:    8px;
   --radius-sm: 5px;
-  --topbar-h: 48px;
-  --sidebar-w: 264px;
-  --studio-w: 296px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius-lg: 12px;
+  --topbar-h:  48px;
+  --sidebar-w: 260px;
+  --studio-w:  300px;
+  font-family: 'Inter', -apple-system, sans-serif;
 }
 
-html, body { height: 100%; background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+html, body {
+  height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--text-primary);
+  font-size: 13px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
 
-/* ── TOPBAR ────────────────────────────────────────────── */
-.topbar {
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* ── TOPBAR ─────────────────────────────────────── */
+
+header {
   height: var(--topbar-h);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  gap: 12px;
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 100;
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 12px;
+  flex-shrink: 0; z-index: 100;
 }
-.topbar-logo {
-  display: flex; align-items: center; gap: 7px;
-  font-weight: 600; font-size: 13px; color: var(--text);
-  text-decoration: none; flex-shrink: 0;
+
+.logo {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600;
+  color: var(--text-primary); cursor: pointer;
+  letter-spacing: -0.015em; text-decoration: none;
+  flex-shrink: 0; user-select: none;
 }
-.topbar-logo span { font-size: 15px; }
-.topbar-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
-.nb-selector {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border-radius: var(--radius-sm);
-  cursor: pointer; transition: background 0.15s;
-  font-size: 13px; font-weight: 500;
-  border: none; background: none; color: var(--text);
-  max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.logo-icon {
+  width: 24px; height: 24px; border-radius: var(--radius-sm);
+  background: var(--accent-dim);
+  border: 1px solid rgba(124,124,240,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
 }
-.nb-selector:hover { background: var(--surface2); }
-.nb-selector .arrow { color: var(--text3); font-size: 10px; flex-shrink: 0; }
-.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.logo-brand { color: var(--accent); }
+
+.header-mid {
+  flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0;
+}
+.breadcrumb-sep { color: var(--text-tertiary); font-size: 16px; }
+.notebook-title-edit {
+  font-size: 13px; font-weight: 500; color: var(--text-primary);
+  background: none; border: none; outline: none;
+  border-bottom: 1px solid transparent;
+  padding: 2px 4px; cursor: pointer;
+  min-width: 80px; max-width: 260px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: border-color 0.15s; font-family: inherit;
+}
+.notebook-title-edit:hover { border-bottom-color: var(--border); }
+.notebook-title-edit:focus { border-bottom-color: var(--accent); cursor: text; }
+
+.chip {
+  background: var(--surface-active); color: var(--text-secondary);
+  font-size: 11px; font-weight: 500; padding: 3px 8px;
+  border-radius: 99px; border: 1px solid var(--border); white-space: nowrap;
+}
+.header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
 .btn-icon {
-  height: 28px; padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text2);
-  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
-  cursor: pointer; transition: all 0.15s;
-  display: flex; align-items: center; gap: 5px;
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  background: transparent; border: 1px solid transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--text-tertiary); transition: all 0.12s;
 }
-.btn-icon:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
+.btn-icon:hover { background: var(--surface-hover); border-color: var(--border); color: var(--text-primary); }
 
-/* ── LAYOUT ────────────────────────────────────────────── */
-.app {
-  display: flex;
-  height: 100vh;
-  padding-top: var(--topbar-h);
-}
-
-/* ── SOURCES PANEL ─────────────────────────────────────── */
-.panel-sources {
-  width: var(--sidebar-w);
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-.panel-header {
-  height: 44px;
-  display: flex; align-items: center;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--border-sub);
-  gap: 8px; flex-shrink: 0;
-}
-.panel-header-title {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--text3);
-  flex: 1;
-}
-.btn-add {
-  height: 24px; padding: 0 8px;
-  background: var(--accent); color: #fff;
-  border: none; border-radius: var(--radius-sm);
-  font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s;
+.btn-back {
   display: flex; align-items: center; gap: 4px;
+  padding: 4px 9px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent;
+  cursor: pointer; font-size: 12px; font-weight: 500;
+  color: var(--text-secondary); transition: all 0.12s; font-family: inherit;
 }
-.btn-add:hover { opacity: 0.88; }
+.btn-back:hover { border-color: var(--border); color: var(--text-primary); background: var(--surface-hover); }
 
-.sources-list { flex: 1; overflow-y: auto; padding: 4px 0; }
-.sources-list::-webkit-scrollbar { width: 4px; }
-.sources-list::-webkit-scrollbar-track { background: transparent; }
-.sources-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.btn-share {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: transparent;
+  cursor: pointer; font-size: 12px; font-weight: 500;
+  color: var(--text-secondary); transition: all 0.12s; font-family: inherit;
+}
+.btn-share:hover { border-color: rgba(124,124,240,0.4); color: var(--accent); background: var(--accent-dim); }
+.btn-share.shared { background: var(--accent-dim); border-color: rgba(124,124,240,0.3); color: var(--accent); }
 
-/* Source item */
+.lang-btn {
+  padding: 4px 8px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: transparent;
+  cursor: pointer; font-size: 11px; font-weight: 600;
+  color: var(--text-secondary); letter-spacing: 0.04em;
+  transition: all 0.12s; font-family: inherit;
+}
+.lang-btn:hover { border-color: var(--text-tertiary); color: var(--text-primary); }
+
+/* ── APP LAYOUT ──────────────────────────────────── */
+
+#app { display: flex; flex-direction: column; height: 100vh; }
+#screen-notebooks { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+#screen-notebook  { display: none; flex: 1; overflow: hidden; }
+#screen-share     { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+
+/* ── NOTEBOOKS HOME ──────────────────────────────── */
+
+.notebooks-home {
+  flex: 1; overflow-y: auto;
+  padding: 52px 48px;
+  max-width: 860px; margin: 0 auto; width: 100%;
+}
+.notebooks-home-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 36px;
+}
+.notebooks-home-header h1 {
+  font-size: 18px; font-weight: 600;
+  letter-spacing: -0.025em; color: var(--text-primary);
+}
+.btn-new-nb {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; background: var(--accent);
+  color: #fff; border: none; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: opacity 0.15s; font-family: inherit;
+}
+.btn-new-nb:hover { opacity: 0.85; }
+
+.notebooks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+  gap: 10px;
+}
+.notebook-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px;
+  cursor: pointer; transition: all 0.15s; position: relative;
+}
+.notebook-card:hover { border-color: rgba(124,124,240,0.3); background: var(--surface-hover); }
+.notebook-card-icon { font-size: 22px; margin-bottom: 14px; }
+.notebook-card-name {
+  font-size: 14px; font-weight: 500; color: var(--text-primary);
+  margin-bottom: 4px; letter-spacing: -0.01em;
+}
+.notebook-card-desc {
+  font-size: 12px; color: var(--text-tertiary);
+  margin-bottom: 16px; min-height: 16px; line-height: 1.5;
+}
+.notebook-card-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; color: var(--text-tertiary);
+}
+.notebook-card-delete {
+  position: absolute; top: 12px; right: 12px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-tertiary); font-size: 13px; opacity: 0;
+  transition: opacity 0.12s, color 0.12s; line-height: 1; padding: 3px;
+}
+.notebook-card:hover .notebook-card-delete { opacity: 1; }
+.notebook-card-delete:hover { color: var(--red); }
+
+.notebooks-empty { text-align: center; padding: 80px 20px; }
+.notebooks-empty .emoji { font-size: 36px; margin-bottom: 16px; }
+.notebooks-empty h2 { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+.notebooks-empty p { color: var(--text-secondary); font-size: 13px; }
+
+/* ── PANEL LAYOUT ────────────────────────────────── */
+
+.panels { display: flex; flex: 1; overflow: hidden; height: 100%; }
+.panel  { display: flex; flex-direction: column; overflow: hidden; }
+
+.panel-header {
+  padding: 0 14px; height: 40px;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  flex-shrink: 0; background: var(--surface);
+}
+.panel-body { flex: 1; overflow-y: auto; background: var(--bg); }
+
+/* ── SOURCES PANEL ───────────────────────────────── */
+
+#panel-sources {
+  width: var(--sidebar-w); min-width: var(--sidebar-w);
+  border-right: 1px solid var(--border); background: var(--surface);
+}
+#panel-sources .panel-body {
+  background: var(--surface); padding: 0;
+  display: flex; flex-direction: column;
+}
+
+.sources-toolbar { display: flex; align-items: center; gap: 2px; }
+.sources-toolbar button {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-tertiary); font-size: 11px;
+  padding: 2px 6px; border-radius: 4px;
+  transition: color 0.12s; font-family: inherit;
+}
+.sources-toolbar button:hover { color: var(--text-secondary); }
+
+.btn-add-source {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: calc(100% - 24px); margin: 10px 12px;
+  padding: 7px 12px; border-radius: var(--radius);
+  background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border);
+  font-weight: 500; font-size: 12px; cursor: pointer;
+  transition: all 0.12s; font-family: inherit; flex-shrink: 0;
+}
+.btn-add-source:hover {
+  background: var(--accent-dim);
+  border-color: rgba(124,124,240,0.3); color: var(--accent);
+}
+
+#sources-list { flex: 1; }
+
 .source-item {
-  display: flex; align-items: center;
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: background 0.12s;
-  position: relative;
-  gap: 9px;
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; cursor: pointer; transition: background 0.1s;
+  border-left: 2px solid transparent; position: relative;
 }
-.source-item:hover { background: var(--surface2); }
-.source-item.active { background: var(--surface2); }
-.source-item.active::before {
-  content: '';
-  position: absolute; left: 0; top: 4px; bottom: 4px;
-  width: 2px; background: var(--accent);
-  border-radius: 0 2px 2px 0;
-}
+.source-item:hover { background: var(--surface-hover); }
+.source-item.selected { background: var(--accent-dim); border-left-color: var(--accent); }
+.source-item + .source-item { border-top: 1px solid var(--border-subtle); }
+
 .source-check {
-  width: 14px; height: 14px;
-  accent-color: var(--accent);
-  cursor: pointer; flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.12s;
+  width: 14px; height: 14px; border-radius: 3px;
+  border: 1.5px solid var(--border); flex-shrink: 0;
+  cursor: pointer; appearance: none; -webkit-appearance: none;
+  background: transparent; transition: all 0.1s;
+  position: relative; opacity: 0;
 }
 .source-item:hover .source-check,
-.source-item.checked .source-check { opacity: 1; }
-.source-icon { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+.source-item.selected .source-check { opacity: 1; }
+.source-check:checked { background: var(--accent); border-color: var(--accent); }
+.source-check:checked::after {
+  content: ''; position: absolute;
+  left: 3px; top: 1px;
+  width: 4px; height: 7px;
+  border: 1.5px solid #fff; border-top: none; border-left: none;
+  transform: rotate(45deg);
+}
+
+.source-icon-wrap {
+  width: 26px; height: 26px; border-radius: var(--radius-sm);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; background: var(--surface-active);
+}
+.source-item.selected .source-icon-wrap { background: rgba(124,124,240,0.18); }
+
 .source-info { flex: 1; min-width: 0; }
 .source-name {
-  font-size: 12px; font-weight: 500;
-  color: var(--text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 13px; font-weight: 500; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;
 }
 .source-meta {
-  display: flex; align-items: center; gap: 6px;
-  margin-top: 2px;
-}
-.status-dot {
-  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-}
-.status-dot.ready { background: var(--green); }
-.status-dot.error { background: var(--red); }
-.status-dot.processing, .status-dot.pending {
-  background: var(--yellow);
-  animation: pulse-dot 1.2s ease-in-out infinite;
-}
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-.source-status-text { font-size: 11px; color: var(--text3); }
-.source-delete {
-  opacity: 0; width: 18px; height: 18px;
-  border: none; background: none;
-  color: var(--text3); cursor: pointer;
-  font-size: 14px; line-height: 1;
-  border-radius: 3px;
-  transition: all 0.12s;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.source-item:hover .source-delete { opacity: 1; }
-.source-delete:hover { background: rgba(245,80,80,0.15); color: var(--red); }
-
-.sources-empty {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text3);
-  font-size: 12px;
-  line-height: 1.7;
-}
-.sources-empty-icon { font-size: 28px; margin-bottom: 10px; opacity: 0.5; }
-
-.drop-zone {
-  margin: 8px 10px;
-  padding: 14px;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.15s;
-  color: var(--text3);
-  font-size: 11px;
-  line-height: 1.6;
-}
-.drop-zone:hover, .drop-zone.dragover {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-  color: var(--text2);
-}
-.drop-zone-icon { font-size: 16px; margin-bottom: 4px; }
-
-/* ── CENTER PANEL ──────────────────────────────────────── */
-.panel-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-.main-tabs {
-  height: 44px;
-  display: flex; align-items: center;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border-sub);
-  gap: 4px; flex-shrink: 0;
-}
-.tab-btn {
-  height: 28px; padding: 0 12px;
-  border: none; background: none;
-  color: var(--text3); font-size: 12px; font-weight: 500;
-  cursor: pointer; border-radius: var(--radius-sm);
-  transition: all 0.12s;
-}
-.tab-btn:hover { background: var(--surface2); color: var(--text2); }
-.tab-btn.active { background: var(--surface2); color: var(--text); }
-
-.chat-area {
-  flex: 1; overflow-y: auto;
-  padding: 20px 24px;
-  display: flex; flex-direction: column; gap: 16px;
-}
-.chat-area::-webkit-scrollbar { width: 4px; }
-.chat-area::-webkit-scrollbar-track { background: transparent; }
-.chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-.chat-welcome {
-  margin: auto;
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text3);
-}
-.chat-welcome h2 { font-size: 16px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
-.chat-welcome p { font-size: 12px; line-height: 1.7; }
-
-/* Messages */
-.msg { display: flex; gap: 10px; max-width: 720px; }
-.msg.user { margin-left: auto; flex-direction: row-reverse; }
-.msg-avatar {
-  width: 26px; height: 26px; border-radius: 50%;
-  background: var(--accent-dim);
-  border: 1px solid var(--accent);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700; color: var(--accent);
-  flex-shrink: 0;
-}
-.msg.user .msg-avatar { background: var(--surface3); border-color: var(--border); color: var(--text2); }
-.msg-bubble {
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  font-size: 13px; line-height: 1.6;
-  max-width: 100%;
-}
-.msg.ai .msg-bubble { background: var(--surface); border: 1px solid var(--border-sub); color: var(--text); }
-.msg.user .msg-bubble { background: var(--accent-dim); border: 1px solid rgba(99,102,241,0.2); color: var(--text); }
-
-.msg-citations {
-  margin-top: 8px;
-  display: flex; flex-wrap: wrap; gap: 6px;
-}
-.citation-chip {
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  font-size: 10px; color: var(--text2);
-  cursor: pointer; transition: all 0.12s;
-}
-.citation-chip:hover { border-color: var(--accent); color: var(--accent); }
-
-.thinking {
-  display: flex; align-items: center; gap: 8px;
-  color: var(--text3); font-size: 12px;
-  padding: 8px 14px;
-}
-.thinking-dots { display: flex; gap: 3px; }
-.thinking-dots span {
-  width: 4px; height: 4px; border-radius: 50%;
-  background: var(--text3);
-  animation: blink 1.2s ease-in-out infinite;
-}
-.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
-.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
-@keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:1} }
-
-/* Chat input */
-.chat-input-wrap {
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-sub);
-  display: flex; align-items: flex-end; gap: 8px;
-}
-textarea#chat-input {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 9px 13px;
-  color: var(--text);
-  font-size: 13px; font-family: inherit;
-  resize: none; outline: none;
-  transition: border-color 0.15s;
-  min-height: 38px; max-height: 160px;
-  line-height: 1.5;
-}
-textarea#chat-input:focus { border-color: rgba(99,102,241,0.4); }
-textarea#chat-input::placeholder { color: var(--text3); }
-.btn-send {
-  width: 34px; height: 34px;
-  background: var(--accent); border: none;
-  border-radius: var(--radius-sm);
-  color: #fff; font-size: 15px;
-  cursor: pointer; transition: opacity 0.15s;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.btn-send:hover { opacity: 0.85; }
-.btn-send:disabled { opacity: 0.35; cursor: not-allowed; }
-
-/* Knowledge Map */
-.map-panel { flex: 1; background: var(--bg); position: relative; overflow: hidden; }
-#map-svg { width: 100%; height: 100%; }
-
-/* ── STUDIO PANEL ──────────────────────────────────────── */
-.panel-studio {
-  width: var(--studio-w);
-  flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-.studio-header {
-  height: 44px;
-  display: flex; align-items: center;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--border-sub);
-  gap: 8px; flex-shrink: 0;
-}
-.studio-header-title {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--text3); flex: 1;
-}
-.gen-lang-btn {
-  height: 22px; padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font-size: 10px; font-weight: 700;
-  color: var(--text2); cursor: pointer;
-  transition: all 0.12s; letter-spacing: 0.04em;
-}
-.gen-lang-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-.studio-body { flex: 1; overflow-y: auto; padding: 8px 0 16px; }
-.studio-body::-webkit-scrollbar { width: 4px; }
-.studio-body::-webkit-scrollbar-track { background: transparent; }
-.studio-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-.studio-section { margin-bottom: 4px; }
-.studio-section-label {
-  padding: 12px 14px 6px;
-  font-size: 10px; font-weight: 600;
-  letter-spacing: 0.07em; text-transform: uppercase;
-  color: var(--text3);
+  font-size: 11px; color: var(--text-secondary); margin-top: 2px;
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
 }
 
-.gen-row {
-  display: flex; align-items: center;
-  padding: 7px 14px;
-  cursor: pointer;
-  transition: background 0.12s;
-  gap: 9px;
-  user-select: none;
-}
-.gen-row:hover { background: var(--surface2); }
-.gen-row.generating { pointer-events: none; }
-.gen-icon { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
-.gen-label { flex: 1; font-size: 12px; font-weight: 500; color: var(--text2); }
-.gen-row:hover .gen-label { color: var(--text); }
-.gen-arrow {
-  color: var(--text3); font-size: 10px;
-  transition: transform 0.15s;
-}
-.gen-row.open .gen-arrow { transform: rotate(90deg); }
+.status-dot { width: 5px; height: 5px; border-radius: 99px; flex-shrink: 0; display: inline-block; }
+.status-dot.ready      { background: var(--green); }
+.status-dot.processing { background: var(--yellow); animation: pulse-dot 1.2s infinite; }
+.status-dot.pending    { background: var(--text-tertiary); }
+.status-dot.error      { background: var(--red); }
+@keyframes pulse-dot { 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
 
-/* Spinner */
-.spinner {
-  width: 12px; height: 12px;
-  border: 1.5px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+.source-type-badge { font-size: 10px; font-weight: 500; padding: 0 5px; border-radius: 99px; }
+.source-type-badge.book      { background: rgba(240,164,41,0.1); color: var(--yellow); }
+.source-type-badge.brandbook { background: var(--accent-dim); color: var(--accent); }
+
+.source-spinner {
+  display: inline-block; width: 9px; height: 9px; border-radius: 99px;
+  border: 1.5px solid var(--border); border-top-color: var(--yellow);
+  animation: spin 0.6s linear infinite; flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.gen-result {
-  display: none;
-  padding: 10px 14px 12px 41px;
-  border-bottom: 1px solid var(--border-sub);
+.source-delete {
+  opacity: 0; background: none; border: none; cursor: pointer;
+  color: var(--text-tertiary); font-size: 14px; padding: 0 2px; line-height: 1;
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  transition: opacity 0.1s, color 0.1s; flex-shrink: 0;
 }
-.gen-result.visible { display: block; }
-.gen-result audio { width: 100%; margin-bottom: 8px; border-radius: var(--radius-sm); }
-.gen-result img { width: 100%; border-radius: var(--radius); cursor: zoom-in; }
-.gen-result .md-body { font-size: 12px; line-height: 1.7; color: var(--text2); }
-.gen-result .md-body h1,.gen-result .md-body h2,.gen-result .md-body h3 { 
-  font-size: 12px; font-weight: 600; color: var(--text); margin: 10px 0 4px;
-}
-.gen-result .md-body ul { padding-left: 16px; }
-.gen-result .download-link {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 10px; margin-top: 8px;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text2); font-size: 11px; font-weight: 500;
-  text-decoration: none; transition: all 0.12s;
-}
-.gen-result .download-link:hover { border-color: var(--accent); color: var(--accent); }
+.source-item:hover .source-delete { opacity: 1; }
+.source-delete:hover { opacity: 1 !important; color: var(--red); }
 
-/* ── NOTEBOOKS DROPDOWN ────────────────────────────────── */
-.nb-dropdown {
-  position: absolute;
-  top: calc(var(--topbar-h) + 4px);
-  left: 160px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  min-width: 240px;
-  z-index: 200;
-  padding: 6px 0;
-  display: none;
+.drop-zone {
+  margin: 0 12px 12px; border: 1px dashed var(--border);
+  border-radius: var(--radius); padding: 14px 12px;
+  text-align: center; color: var(--text-tertiary); font-size: 12px;
+  transition: all 0.15s; cursor: pointer; flex-shrink: 0;
 }
-.nb-dropdown.open { display: block; }
-.nb-item {
-  padding: 8px 14px;
-  cursor: pointer;
-  font-size: 12px; color: var(--text2);
-  transition: background 0.12s;
-  display: flex; align-items: center; gap: 8px;
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent); background: var(--accent-dim); color: var(--accent);
 }
-.nb-item:hover, .nb-item.active { background: var(--surface2); color: var(--text); }
-.nb-item .nb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0; flex-shrink: 0; }
-.nb-item.active .nb-dot { opacity: 1; }
-.nb-divider { height: 1px; background: var(--border-sub); margin: 4px 0; }
-.nb-action {
-  padding: 8px 14px;
-  cursor: pointer;
-  font-size: 12px; color: var(--accent);
-  transition: background 0.12s;
-  display: flex; align-items: center; gap: 8px;
-}
-.nb-action:hover { background: var(--accent-dim); }
+.drop-zone-icon { font-size: 16px; margin-bottom: 3px; }
+.empty-sources { text-align: center; padding: 28px 16px; color: var(--text-tertiary); font-size: 12px; }
+.empty-sources .emoji { font-size: 22px; margin-bottom: 6px; }
 
-/* ── MODAL ─────────────────────────────────────────────── */
+#chapter-tree { margin: 0 12px 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.chapter-tree-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 4px; padding: 0 2px;
+}
+.chapter-item {
+  padding: 6px 8px; border-radius: var(--radius-sm); font-size: 12px;
+  color: var(--text-secondary); cursor: pointer; transition: all 0.12s;
+  border-left: 2px solid transparent; margin-bottom: 2px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.chapter-item:hover { background: var(--surface-hover); color: var(--text-primary); }
+.chapter-item.active { background: var(--accent-dim); border-left-color: var(--accent); color: var(--accent); }
+.chapter-item-title { font-weight: 500; line-height: 1.3; }
+.chapter-item-summary {
+  font-size: 10px; color: var(--text-tertiary); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* ── CHAT PANEL ──────────────────────────────────── */
+
+#panel-chat { flex: 1; border-right: 1px solid var(--border); background: var(--bg); }
+
+.panel-tabs { display: flex; gap: 2px; }
+.panel-tab-btn {
+  padding: 3px 10px; border-radius: var(--radius-sm); border: none;
+  background: transparent; font-size: 11px; font-weight: 500; cursor: pointer;
+  color: var(--text-tertiary); transition: all 0.12s; font-family: inherit;
+}
+.panel-tab-btn.active  { background: var(--surface-active); color: var(--text-primary); }
+.panel-tab-btn:hover:not(.active) { color: var(--text-secondary); }
+
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 28px 28px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.msg { display: flex; align-items: flex-start; gap: 10px; }
+.msg.user { justify-content: flex-end; }
+.msg.ai   { justify-content: flex-start; }
+
+.msg-avatar {
+  width: 22px; height: 22px; border-radius: 99px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 8px; letter-spacing: 0.3px; margin-top: 3px;
+}
+.msg.ai   .msg-avatar { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(124,124,240,0.2); }
+.msg.user .msg-avatar { background: var(--surface-active); color: var(--text-secondary); }
+
+.msg-bubble {
+  padding: 10px 14px; border-radius: var(--radius-lg);
+  font-size: 13px; line-height: 1.65;
+}
+.msg.user .msg-bubble {
+  background: var(--accent-dim); border: 1px solid rgba(124,124,240,0.15);
+  color: var(--text-primary); border-bottom-right-radius: var(--radius-sm); max-width: 72%;
+}
+/* AI: minimal — no card, just text */
+.msg.ai .msg-bubble {
+  background: transparent; color: var(--text-primary);
+  padding-left: 0; max-width: 92%;
+}
+.msg.ai .msg-bubble h1,.msg.ai .msg-bubble h2,.msg.ai .msg-bubble h3 {
+  font-size: 13.5px; font-weight: 600; margin: 14px 0 5px;
+}
+.msg.ai .msg-bubble p { margin: 5px 0; }
+.msg.ai .msg-bubble ul,.msg.ai .msg-bubble ol { padding-left: 18px; margin: 5px 0; }
+.msg.ai .msg-bubble li { margin: 3px 0; }
+.msg.ai .msg-bubble code {
+  background: var(--surface-active); padding: 1px 5px; border-radius: 4px;
+  font-size: 11.5px; font-family: 'Menlo','Monaco',monospace; color: var(--accent);
+}
+.msg.ai .msg-bubble pre {
+  background: var(--surface-active); border: 1px solid var(--border);
+  padding: 12px; border-radius: var(--radius); overflow-x: auto; margin: 8px 0;
+}
+.msg.ai .msg-bubble table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+.msg.ai .msg-bubble th { background: var(--surface-active); padding: 6px 8px; border: 1px solid var(--border); font-weight: 600; color: var(--text-secondary); }
+.msg.ai .msg-bubble td { padding: 5px 8px; border: 1px solid var(--border); color: var(--text-secondary); }
+.msg.ai .msg-bubble blockquote {
+  border-left: 2px solid var(--accent); padding: 4px 10px; margin: 6px 0; color: var(--text-secondary);
+}
+.msg.ai .msg-bubble strong { color: var(--text-primary); font-weight: 600; }
+.msg.ai .msg-bubble hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+/* Thinking animation */
+.thinking {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-tertiary); align-self: flex-start; padding: 2px 0;
+}
+.thinking .dots span {
+  display: inline-block; width: 4px; height: 4px; border-radius: 99px;
+  background: var(--accent); margin: 0 1px; animation: bounce-dot 1.2s infinite;
+}
+.thinking .dots span:nth-child(2) { animation-delay: .2s; }
+.thinking .dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce-dot { 0%,80%,100%{ transform:translateY(0); } 40%{ transform:translateY(-5px); } }
+
+/* Chat welcome */
+.chat-welcome { padding: 8px 0 24px; max-width: 420px; }
+.chat-welcome .welcome-title {
+  font-size: 19px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 8px; letter-spacing: -0.025em;
+}
+.chat-welcome .welcome-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+.suggestions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.suggestion-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px;
+  font-size: 12px; color: var(--text-secondary); cursor: pointer;
+  transition: all 0.12s; text-align: left; line-height: 1.5; font-family: inherit;
+}
+.suggestion-btn:hover {
+  border-color: rgba(124,124,240,0.3); background: var(--accent-dim); color: var(--text-primary);
+}
+
+/* Chat input */
+.chat-input-area {
+  padding: 12px 16px; background: var(--bg);
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.chat-input-wrap {
+  display: flex; align-items: flex-end; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 8px 12px;
+  transition: border-color 0.15s;
+}
+.chat-input-wrap:focus-within { border-color: rgba(124,124,240,0.4); }
+#chat-input {
+  flex: 1; background: none; border: none; outline: none; resize: none;
+  font-family: inherit; font-size: 14px; color: var(--text-primary);
+  line-height: 1.5; max-height: 120px; min-height: 22px;
+}
+#chat-input::placeholder { color: var(--text-tertiary); }
+.btn-send {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  background: var(--accent); border: none; cursor: pointer;
+  color: #fff; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; align-self: flex-end; transition: opacity 0.15s;
+}
+.btn-send:hover { opacity: 0.82; }
+.btn-send:disabled { background: var(--surface-active); color: var(--text-tertiary); cursor: not-allowed; opacity: 1; }
+.chat-hint { font-size: 10px; color: var(--text-tertiary); margin-top: 6px; text-align: center; }
+
+/* ── MAP PANEL ───────────────────────────────────── */
+
+#panel-map { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.map-toolbar {
+  padding: 8px 14px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.btn-analyze {
+  padding: 5px 12px; background: var(--accent); color: #fff;
+  border: none; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: opacity 0.15s; font-family: inherit;
+}
+.btn-analyze:hover { opacity: 0.85; }
+#links-status { font-size: 12px; color: var(--text-tertiary); }
+#knowledge-map-container { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
+#knowledge-map-svg { width: 100%; height: 100%; }
+.map-legend {
+  position: absolute; bottom: 14px; left: 14px;
+  background: rgba(22,22,24,0.9); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px; font-size: 11px;
+  backdrop-filter: blur(8px);
+}
+.map-legend-title {
+  font-weight: 600; color: var(--text-tertiary); margin-bottom: 6px;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.map-legend-item { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); margin-bottom: 3px; }
+.map-legend-dot { width: 7px; height: 7px; border-radius: 99px; flex-shrink: 0; }
+
+/* ── STUDIO PANEL ────────────────────────────────── */
+
+#panel-studio {
+  width: var(--studio-w); min-width: var(--studio-w);
+  background: var(--surface); border-left: 1px solid var(--border);
+}
+#panel-studio .panel-body { background: var(--surface); padding: 0; }
+
+.studio-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.gen-lang-label { font-size: 11px; color: var(--text-tertiary); }
+.studio-header-row .lang-btn { font-size: 10px; padding: 2px 7px; }
+
+.studio-section-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary); padding: 14px 14px 4px;
+}
+.studio-section-label:first-of-type { padding-top: 10px; }
+
+/* Generator row */
+.studio-btn-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; cursor: pointer;
+  transition: background 0.1s; position: relative;
+}
+.studio-btn-row:hover { background: var(--surface-hover); }
+.studio-btn-row.open  { background: var(--accent-dim); }
+.studio-btn-row + .studio-btn-row { border-top: 1px solid var(--border-subtle); }
+
+/* Highlighted podcast row */
+.sbr-podcast {
+  background: rgba(124,124,240,0.06);
+  border-left: 2px solid rgba(124,124,240,0.3);
+}
+.sbr-podcast:hover { background: var(--accent-hover); }
+.sbr-podcast.open  { background: var(--accent-dim); }
+
+.sbr-left { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
+.sbr-icon { font-size: 15px; flex-shrink: 0; line-height: 1; }
+.sbr-label { font-size: 13px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
+.studio-btn-row:hover .sbr-label { color: var(--text-primary); }
+.studio-btn-row.open .sbr-label  { color: var(--accent); }
+.studio-btn-row.loading .sbr-label { color: var(--text-tertiary); }
+
+.podcast-duration {
+  font-size: 10px; color: var(--text-tertiary); white-space: nowrap;
+  background: var(--surface-active); padding: 1px 6px;
+  border-radius: 99px; border: 1px solid var(--border);
+}
+
+.sbr-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.sbr-arrow { font-size: 10px; color: var(--text-tertiary); transition: transform 0.2s; flex-shrink: 0; }
+.studio-btn-row.open .sbr-arrow { transform: rotate(180deg); }
+.sbr-arrow-done { font-size: 10px; color: var(--green); }
+
+/* Studio result */
+.studio-result {
+  display: none; border-top: 1px solid var(--border-subtle);
+  background: var(--bg); overflow: hidden;
+}
+.studio-result.visible { display: block; }
+.studio-result-inner { padding: 12px 14px; max-height: 260px; overflow-y: auto; }
+.audio-player-wrap audio { width: 100%; border-radius: var(--radius-sm); }
+.img-thumb { width: 100%; border-radius: var(--radius-sm); cursor: zoom-in; transition: opacity 0.15s; }
+.img-thumb:hover { opacity: 0.88; }
+
+.md-content { font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
+.md-content h1,.md-content h2,.md-content h3 { font-size: 12.5px; font-weight: 600; margin: 10px 0 4px; color: var(--text-primary); }
+.md-content p { margin: 4px 0; }
+.md-content ul,.md-content ol { padding-left: 14px; margin: 4px 0; }
+.md-content li { margin: 2px 0; }
+.md-content code { background: var(--surface-active); padding: 1px 4px; border-radius: 3px; font-size: 11px; color: var(--accent); }
+.md-content table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 6px 0; }
+.md-content th { background: var(--surface-active); padding: 5px 7px; border: 1px solid var(--border); font-weight: 600; color: var(--text-secondary); }
+.md-content td { padding: 4px 7px; border: 1px solid var(--border); color: var(--text-tertiary); }
+.md-content blockquote { border-left: 2px solid var(--accent); padding: 3px 9px; margin: 5px 0; color: var(--text-secondary); }
+.md-content strong { color: var(--text-primary); font-weight: 600; }
+
+.download-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
+  background: var(--accent); color: #fff; border-radius: var(--radius-sm);
+  text-decoration: none; font-size: 12px; font-weight: 500; margin-top: 8px;
+  transition: opacity 0.15s;
+}
+.download-btn:hover { opacity: 0.85; }
+
+.studio-spinner {
+  display: inline-block; width: 11px; height: 11px; border-radius: 99px;
+  border: 1.5px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.5s linear infinite; flex-shrink: 0;
+}
+.gen-step { font-size: 11px; color: var(--text-tertiary); font-style: italic; margin-left: 2px; }
+
+.studio-divider { height: 1px; background: var(--border); margin: 6px 14px; }
+
+/* ── MODALS ──────────────────────────────────────── */
+
 .modal-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.7);
-  z-index: 300; align-items: center; justify-content: center;
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
 }
 .modal-overlay.open { display: flex; }
 .modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  width: 440px;
-  padding: 24px;
-  position: relative;
-  box-shadow: 0 16px 64px rgba(0,0,0,0.6);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px; width: 440px; max-width: 95vw;
+  position: relative; max-height: 90vh; overflow-y: auto;
 }
 .modal-close {
   position: absolute; top: 14px; right: 14px;
-  width: 24px; height: 24px;
-  background: none; border: none;
-  color: var(--text3); cursor: pointer; font-size: 16px;
-  border-radius: var(--radius-sm);
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.12s;
+  background: none; border: none; font-size: 16px; cursor: pointer;
+  color: var(--text-tertiary); line-height: 1; padding: 3px; transition: color 0.12s;
 }
-.modal-close:hover { background: var(--surface2); color: var(--text); }
-.modal h2 { font-size: 14px; font-weight: 600; margin-bottom: 20px; }
-.modal-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.modal-close:hover { color: var(--text-primary); }
+.modal h2 { font-size: 15px; font-weight: 600; margin-bottom: 18px; letter-spacing: -0.02em; }
+
+.modal-tabs { display: flex; gap: 2px; margin-bottom: 16px; background: var(--surface-active); border-radius: var(--radius-sm); padding: 3px; }
 .modal-tab {
-  flex: 1; padding: 7px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: none; color: var(--text2);
-  font-size: 12px; font-weight: 500;
-  cursor: pointer; transition: all 0.12s;
-  text-align: center;
+  flex: 1; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px;
+  font-weight: 500; cursor: pointer; border: none; background: transparent;
+  color: var(--text-tertiary); transition: all 0.12s; text-align: center; font-family: inherit;
 }
-.modal-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.modal-tab.active { background: var(--surface); color: var(--text-primary); }
 .modal-tab-content { display: none; }
 .modal-tab-content.active { display: block; }
 
-.drop-area {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 28px;
-  text-align: center;
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 11px; font-weight: 600; color: var(--text-tertiary); margin-bottom: 5px; letter-spacing: 0.03em; }
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%; padding: 8px 11px; border-radius: var(--radius);
+  border: 1px solid var(--border); font-family: inherit;
+  font-size: 13px; color: var(--text-primary); background: var(--surface-active);
+  outline: none; transition: border-color 0.15s; appearance: none;
+}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus { border-color: var(--accent); }
+.form-group select {
   cursor: pointer;
-  transition: all 0.15s;
-  color: var(--text3);
-  font-size: 12px; line-height: 1.8;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234d4d5d' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px;
 }
-.drop-area:hover { border-color: var(--accent); background: var(--accent-dim); }
-.drop-area.dragover { border-color: var(--accent); background: var(--accent-hover); }
-#file-input { display: none; }
-.drop-icon { font-size: 24px; margin-bottom: 6px; }
 
-.input-field {
-  width: 100%;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  color: var(--text);
-  font-size: 13px; font-family: inherit;
-  outline: none; transition: border-color 0.15s;
+.file-drop-area {
+  border: 1px dashed var(--border); border-radius: var(--radius);
+  padding: 28px 20px; text-align: center; cursor: pointer;
+  transition: all 0.15s; color: var(--text-tertiary);
 }
-.input-field:focus { border-color: rgba(99,102,241,0.4); }
-.input-field::placeholder { color: var(--text3); }
+.file-drop-area:hover,.file-drop-area.dragover {
+  border-color: var(--accent); background: var(--accent-dim); color: var(--accent);
+}
+.file-drop-area .drop-icon { font-size: 24px; margin-bottom: 8px; }
+.file-drop-area p { font-size: 13px; }
+.file-drop-area small { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; display: block; }
+#file-input { display: none; }
 
 .btn-primary {
-  width: 100%; margin-top: 12px;
-  padding: 9px;
-  background: var(--accent); border: none;
-  border-radius: var(--radius-sm);
-  color: #fff; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s;
+  width: 100%; padding: 10px; border-radius: var(--radius);
+  background: var(--accent); color: #fff; font-weight: 600; font-size: 13px;
+  border: none; cursor: pointer; transition: opacity 0.15s; font-family: inherit;
 }
-.btn-primary:hover { opacity: 0.88; }
+.btn-primary:hover { opacity: 0.85; }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── LIGHTBOX ───────────────────────────────────────────── */
-.lightbox {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.9);
-  z-index: 400;
-  align-items: center; justify-content: center;
+.share-url-box { display: flex; gap: 8px; margin-top: 10px; }
+.share-url-input {
+  flex: 1; padding: 8px 11px; border-radius: var(--radius);
+  border: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);
+  background: var(--surface-active); outline: none; font-family: inherit;
 }
-.lightbox.open { display: flex; }
-.lightbox img { max-width: 90vw; max-height: 90vh; border-radius: var(--radius); }
-.lightbox-close {
-  position: absolute; top: 16px; right: 16px;
-  background: rgba(255,255,255,0.1); border: none;
-  color: #fff; font-size: 20px; width: 36px; height: 36px;
-  border-radius: 50%; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+.btn-copy {
+  padding: 8px 14px; border-radius: var(--radius); background: var(--accent);
+  color: #fff; border: none; cursor: pointer; font-size: 12px; font-weight: 500;
+  white-space: nowrap; transition: opacity 0.15s; font-family: inherit;
+}
+.btn-copy:hover { opacity: 0.85; }
+.btn-revoke {
+  display: block; margin-top: 8px; padding: 8px 14px; border-radius: var(--radius);
+  background: none; border: 1px solid rgba(255,85,85,0.3); color: var(--red);
+  cursor: pointer; font-size: 12px; font-weight: 500;
+  transition: all 0.15s; width: 100%; font-family: inherit;
+}
+.btn-revoke:hover { background: var(--red); color: #fff; }
+
+.share-banner {
+  background: var(--accent-dim); border-bottom: 1px solid rgba(124,124,240,0.2);
+  padding: 6px 20px; text-align: center;
+  font-size: 12px; color: var(--accent); font-weight: 500; flex-shrink: 0;
 }
 
-/* ── TOAST ─────────────────────────────────────────────── */
-#toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 500; display: flex; flex-direction: column; gap: 8px; }
+/* ── LIGHTBOX ────────────────────────────────────── */
+
+.lightbox-overlay {
+  display: none; position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.92); align-items: center; justify-content: center; cursor: zoom-out;
+}
+.lightbox-overlay.open { display: flex; }
+.lightbox-overlay img { max-width: 95vw; max-height: 95vh; border-radius: var(--radius); object-fit: contain; }
+
+/* ── SCRIPT MODAL ────────────────────────────────── */
+
+#script-modal .modal { width: 640px; }
+.script-host-1 {
+  margin: 4px 0; padding: 8px 12px;
+  background: var(--accent-dim); border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.script-host-2 {
+  margin: 4px 0; padding: 8px 12px;
+  background: rgba(62,207,142,0.07); border-left: 2px solid var(--green);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.script-host-label { font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 2px; }
+.script-host-1 .script-host-label { color: var(--accent); }
+.script-host-2 .script-host-label { color: var(--green); }
+.script-host-text { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+/* ── TOAST ───────────────────────────────────────── */
+
+#toast-container {
+  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 6px;
+}
 .toast {
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  font-size: 12px; font-weight: 500;
-  border: 1px solid var(--border);
-  backdrop-filter: blur(8px);
-  animation: slide-in 0.2s ease;
-  max-width: 280px;
+  padding: 9px 14px; border-radius: var(--radius); font-size: 12px; font-weight: 500;
+  animation: slideIn 0.2s ease; max-width: 280px;
+  display: flex; align-items: center; gap: 7px; border: 1px solid transparent;
 }
-@keyframes slide-in { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-.toast.success { background: rgba(62,207,142,0.12); border-color: rgba(62,207,142,0.3); color: var(--green); }
-.toast.error { background: rgba(245,80,80,0.12); border-color: rgba(245,80,80,0.3); color: var(--red); }
-.toast.info { background: var(--surface); color: var(--text2); }
-
-/* markdown in chat */
-.md-content h1,.md-content h2,.md-content h3 { font-weight: 600; color: var(--text); margin: 10px 0 4px; }
-.md-content h1 { font-size: 14px; }
-.md-content h2 { font-size: 13px; }
-.md-content h3 { font-size: 12px; }
-.md-content ul,.md-content ol { padding-left: 18px; }
-.md-content li { margin: 3px 0; }
-.md-content code { background: var(--surface3); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
-.md-content pre { background: var(--surface3); padding: 10px; border-radius: var(--radius-sm); overflow-x: auto; margin: 8px 0; }
-.md-content blockquote { border-left: 2px solid var(--accent); padding-left: 10px; color: var(--text2); margin: 6px 0; }
-.md-content table { border-collapse: collapse; width: 100%; font-size: 11px; }
-.md-content th,.md-content td { border: 1px solid var(--border); padding: 5px 8px; }
-.md-content th { background: var(--surface2); }
-.md-content p { margin: 5px 0; }
+.toast.success { background: rgba(62,207,142,0.12); color: var(--green); border-color: rgba(62,207,142,0.25); }
+.toast.error   { background: rgba(255,85,85,0.1); color: var(--red); border-color: rgba(255,85,85,0.25); }
+.toast.info    { background: var(--surface-active); color: var(--text-secondary); border-color: var(--border); }
+@keyframes slideIn { from { transform:translateX(20px); opacity:0; } to { transform:translateX(0); opacity:1; } }
 </style>
 </head>
 <body>
+<div id="app">
 
-<!-- TOPBAR -->
-<header class="topbar">
-  <div class="topbar-logo">
-    <span>📚</span> Knowledge Studio
+<!-- ── TOPBAR ── -->
+<header id="main-header">
+  <div class="logo" onclick="goHome()">
+    <div class="logo-icon">🧠</div>
+    Knowledge<span class="logo-brand">&nbsp;Studio</span>
   </div>
-  <div class="topbar-sep"></div>
-  <button class="nb-selector" id="nb-selector" onclick="toggleNbDropdown()">
-    <span id="nb-name">Loading...</span>
-    <span class="arrow">▾</span>
-  </button>
-  <div class="topbar-right">
-    <button class="btn-icon" id="btn-share" onclick="shareNotebook()">⇪ Share</button>
-    <button class="btn-icon" id="btn-ui-lang" onclick="toggleUiLang()">RU</button>
+
+  <div class="header-mid" id="header-notebook-area" style="display:none">
+    <button class="btn-back" onclick="goHome()">← Back</button>
+    <span class="breadcrumb-sep">/</span>
+    <input class="notebook-title-edit" id="notebook-title-input" type="text" value=""
+           onblur="saveNotebookTitle()" onkeydown="if(event.key==='Enter')this.blur()">
+  </div>
+  <div class="header-mid" id="header-home-area">
+    <span class="chip" id="header-nb-count">0 notebooks</span>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn-share" id="btn-share-nb" style="display:none" onclick="openShareModal()">🔗 Share</button>
+    <button class="lang-btn" id="btn-lang" onclick="toggleLang()">EN</button>
   </div>
 </header>
 
-<!-- Notebooks dropdown -->
-<div class="nb-dropdown" id="nb-dropdown">
-  <div id="nb-list"></div>
-  <div class="nb-divider"></div>
-  <div class="nb-action" onclick="createNotebook()">+ New notebook</div>
+<!-- ── HOME SCREEN ── -->
+<div id="screen-notebooks" style="display:flex">
+  <div class="notebooks-home" id="notebooks-home">
+    <div class="notebooks-home-header">
+      <h1>📚 Knowledge Studio</h1>
+      <button class="btn-new-nb" onclick="openCreateModal()">＋ New notebook</button>
+    </div>
+    <div class="notebooks-grid" id="notebooks-grid"></div>
+  </div>
 </div>
 
-<!-- MAIN APP -->
-<div class="app">
+<!-- ── NOTEBOOK SCREEN ── -->
+<div id="screen-notebook">
+  <div class="panels">
 
-  <!-- SOURCES PANEL -->
-  <aside class="panel-sources">
-    <div class="panel-header">
-      <span class="panel-header-title" data-i18n="sources">Sources</span>
-      <span id="sources-count" style="font-size:11px;color:var(--text3);margin-right:auto"></span>
-      <button class="btn-add" onclick="openAddModal()">
-        + <span data-i18n="add">Add</span>
-      </button>
-    </div>
-
-    <div class="sources-list" id="sources-list">
-      <div class="sources-empty">
-        <div class="sources-empty-icon">📂</div>
-        <span data-i18n="noSources">No sources yet</span>
+    <!-- SOURCES PANEL -->
+    <div class="panel" id="panel-sources">
+      <div class="panel-header">
+        <span>Sources</span>
+        <div class="sources-toolbar">
+          <button onclick="selectAllSources(true)">All</button>
+          <button onclick="selectAllSources(false)">None</button>
+        </div>
+      </div>
+      <div class="panel-body" id="sources-body">
+        <button class="btn-add-source" onclick="openAddModal()">＋ Add source</button>
+        <div id="sources-list"></div>
+        <div id="chapter-tree" style="display:none">
+          <div class="chapter-tree-label">Chapters</div>
+          <div id="chapter-tree-list"></div>
+        </div>
+        <div class="drop-zone" id="drop-zone" onclick="openAddModal()">
+          <div class="drop-zone-icon">⬆</div>
+          <div>Drop files here or click to upload</div>
+          <div style="font-size:10px;margin-top:2px;color:var(--text-tertiary)">PDF · DOCX · TXT</div>
+        </div>
       </div>
     </div>
 
-    <div class="drop-zone" id="drop-zone" onclick="openAddModal()">
-      <div class="drop-zone-icon">↑</div>
-      <span data-i18n="dropFiles">Drop files or click to upload</span>
-    </div>
-  </aside>
-
-  <!-- CENTER PANEL -->
-  <main class="panel-main">
-    <div class="main-tabs">
-      <button class="tab-btn active" id="tab-chat" onclick="switchMainTab('chat')" data-i18n="chat">Chat</button>
-      <button class="tab-btn" id="tab-map" onclick="switchMainTab('map')" data-i18n="knowledgeMap">Knowledge Map</button>
-    </div>
-
-    <!-- Chat -->
-    <div id="view-chat" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
-      <div class="chat-area" id="chat-area">
-        <div class="chat-welcome" id="chat-welcome">
-          <h2 data-i18n="chatWelcomeTitle">Start a conversation</h2>
-          <p data-i18n="chatWelcomeDesc">Select sources on the left, then ask anything about them.</p>
+    <!-- CHAT PANEL -->
+    <div class="panel" id="panel-chat">
+      <div class="panel-header">
+        <div class="panel-tabs">
+          <button class="panel-tab-btn active" id="tab-chat-btn" onclick="switchPanelTab('chat')">💬 Chat</button>
+          <button class="panel-tab-btn" id="tab-map-btn" onclick="switchPanelTab('map')">🗺 Map</button>
         </div>
-      </div>
-      <div class="chat-input-wrap">
-        <textarea id="chat-input" rows="1" data-i18n-placeholder="askSources" placeholder="Ask about your sources..." maxlength="4000"></textarea>
-        <button class="btn-send" id="btn-send" onclick="sendMessage()">↑</button>
-      </div>
-    </div>
-
-    <!-- Knowledge Map -->
-    <div id="view-map" style="display:none;flex:1;overflow:hidden">
-      <div class="map-panel">
-        <svg id="map-svg"></svg>
-      </div>
-    </div>
-  </main>
-
-  <!-- STUDIO PANEL -->
-  <aside class="panel-studio">
-    <div class="studio-header">
-      <span class="studio-header-title" data-i18n="studio">Studio</span>
-      <button class="gen-lang-btn" id="btn-gen-lang" onclick="toggleGenLang()">🇷🇺 RU</button>
-    </div>
-    <div class="studio-body">
-
-      <!-- Audio & Media -->
-      <div class="studio-section">
-        <div class="studio-section-label" data-i18n="sectionAudio">Audio & Media</div>
-
-        <div class="gen-row" id="row-audio" onclick="studioGenerate('audio')">
-          <span class="gen-icon">🎙</span>
-          <span class="gen-label" data-i18n="audioOverview">Audio Overview</span>
-          <span class="gen-arrow" id="arrow-audio">▸</span>
-        </div>
-        <div class="gen-result" id="result-audio"><div class="result-content" id="content-audio"></div></div>
-
-        <div class="gen-row" id="row-podcast_full" onclick="studioGenerate('podcast_full')" style="border-left:2px solid var(--accent);padding-left:12px">
-          <span class="gen-icon">🎧</span>
-          <span class="gen-label" style="color:var(--text)" data-i18n="podcastFull">Podcast (Full)</span>
-          <span class="gen-arrow" id="arrow-podcast_full">▸</span>
-        </div>
-        <div class="gen-result" id="result-podcast_full"><div class="result-content" id="content-podcast_full"></div></div>
-
-        <div class="gen-row" id="row-mindmap" onclick="studioGenerate('mindmap')">
-          <span class="gen-icon">🗺</span>
-          <span class="gen-label" data-i18n="mindMap">Mind Map</span>
-          <span class="gen-arrow" id="arrow-mindmap">▸</span>
-        </div>
-        <div class="gen-result" id="result-mindmap"><div class="result-content" id="content-mindmap"></div></div>
-
-        <div class="gen-row" id="row-infographic" onclick="studioGenerate('infographic')">
-          <span class="gen-icon">📊</span>
-          <span class="gen-label" data-i18n="infographic">Infographic</span>
-          <span class="gen-arrow" id="arrow-infographic">▸</span>
-        </div>
-        <div class="gen-result" id="result-infographic"><div class="result-content" id="content-infographic"></div></div>
+        <button class="btn-icon" style="width:24px;height:24px;font-size:11px" onclick="clearChat()" title="Clear chat">✕</button>
       </div>
 
-      <!-- Text Reports -->
-      <div class="studio-section">
-        <div class="studio-section-label" data-i18n="sectionText">Text Reports</div>
-
-        <div class="gen-row" id="row-studyguide" onclick="studioGenerate('studyguide')">
-          <span class="gen-icon">📑</span>
-          <span class="gen-label" data-i18n="studyGuide">Study Guide</span>
-          <span class="gen-arrow" id="arrow-studyguide">▸</span>
+      <div id="panel-map">
+        <div class="map-toolbar">
+          <button class="btn-analyze" onclick="analyzeLinks()">⚡ Analyze Links</button>
+          <span id="links-status">Select 2+ sources and click Analyze</span>
         </div>
-        <div class="gen-result" id="result-studyguide"><div class="result-content" id="content-studyguide"></div></div>
-
-        <div class="gen-row" id="row-faq" onclick="studioGenerate('faq')">
-          <span class="gen-icon">❓</span>
-          <span class="gen-label" data-i18n="faq">FAQ</span>
-          <span class="gen-arrow" id="arrow-faq">▸</span>
+        <div id="knowledge-map-container">
+          <svg id="knowledge-map-svg"></svg>
+          <div class="map-legend">
+            <div class="map-legend-title">Link Types</div>
+            <div class="map-legend-item"><span class="map-legend-dot" style="background:#3ecf8e"></span>Confirms</div>
+            <div class="map-legend-item"><span class="map-legend-dot" style="background:#f55"></span>Contradicts</div>
+            <div class="map-legend-item"><span class="map-legend-dot" style="background:#7c7cf0"></span>Develops</div>
+            <div class="map-legend-item"><span class="map-legend-dot" style="background:#f0a429"></span>Illustrates</div>
+          </div>
         </div>
-        <div class="gen-result" id="result-faq"><div class="result-content" id="content-faq"></div></div>
-
-        <div class="gen-row" id="row-briefing" onclick="studioGenerate('briefing')">
-          <span class="gen-icon">📋</span>
-          <span class="gen-label" data-i18n="briefing">Briefing Doc</span>
-          <span class="gen-arrow" id="arrow-briefing">▸</span>
-        </div>
-        <div class="gen-result" id="result-briefing"><div class="result-content" id="content-briefing"></div></div>
-
-        <div class="gen-row" id="row-timeline" onclick="studioGenerate('timeline')">
-          <span class="gen-icon">⏱</span>
-          <span class="gen-label" data-i18n="timeline">Timeline</span>
-          <span class="gen-arrow" id="arrow-timeline">▸</span>
-        </div>
-        <div class="gen-result" id="result-timeline"><div class="result-content" id="content-timeline"></div></div>
-
-        <div class="gen-row" id="row-glossary" onclick="studioGenerate('glossary')">
-          <span class="gen-icon">📝</span>
-          <span class="gen-label" data-i18n="glossary">Glossary</span>
-          <span class="gen-arrow" id="arrow-glossary">▸</span>
-        </div>
-        <div class="gen-result" id="result-glossary"><div class="result-content" id="content-glossary"></div></div>
       </div>
 
-      <!-- Presentations -->
-      <div class="studio-section">
-        <div class="studio-section-label" data-i18n="sectionVisuals">Visuals</div>
-
-        <div class="gen-row" id="row-presentation" onclick="studioGenerate('presentation')">
-          <span class="gen-icon">📽</span>
-          <span class="gen-label" data-i18n="presentation">Presentation</span>
-          <span class="gen-arrow" id="arrow-presentation">▸</span>
+      <div class="chat-messages" id="chat-messages">
+        <div id="chat-welcome" class="chat-welcome">
+          <div class="welcome-title">Ask about your sources</div>
+          <div class="welcome-sub">Select sources on the left, then ask anything</div>
+          <div class="suggestions-grid" id="suggestions-grid">
+            <button class="suggestion-btn" onclick="usesuggestion(this)">Summarize the key points of my sources</button>
+            <button class="suggestion-btn" onclick="usesuggestion(this)">What are the main arguments made?</button>
+            <button class="suggestion-btn" onclick="usesuggestion(this)">List all important dates and events</button>
+            <button class="suggestion-btn" onclick="usesuggestion(this)">Who are the key people mentioned?</button>
+          </div>
         </div>
-        <div class="gen-result" id="result-presentation"><div class="result-content" id="content-presentation"></div></div>
       </div>
-
+      <div class="chat-input-area" id="chat-input-area">
+        <div class="chat-input-wrap">
+          <textarea id="chat-input" rows="1" placeholder="Ask about your sources…" maxlength="4000"></textarea>
+          <button class="btn-send" id="btn-send" onclick="sendMessage()">↑</button>
+        </div>
+        <div class="chat-hint">Enter to send · Shift+Enter new line</div>
+      </div>
     </div>
-  </aside>
+
+    <!-- STUDIO PANEL -->
+    <div class="panel" id="panel-studio">
+      <div class="panel-header">
+        <span>Studio</span>
+      </div>
+      <div class="panel-body">
+        <div class="studio-header-row">
+          <span class="gen-lang-label">Output language</span>
+          <button class="lang-btn" id="btn-gen-lang" onclick="toggleGenLang()">RU</button>
+        </div>
+
+        <div class="studio-section-label">🎙 Audio &amp; Media</div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row sbr-podcast" id="sbr-podcast_full" onclick="studioGenerate('podcast_full')">
+            <div class="sbr-left">
+              <span class="sbr-icon">🎧</span>
+              <div>
+                <div class="sbr-label">Podcast Episode</div>
+                <div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Two-host · Deep dialogue</div>
+              </div>
+            </div>
+            <div class="sbr-right">
+              <span class="podcast-duration">15–20 min</span>
+              <span class="sbr-arrow">▾</span>
+            </div>
+          </div>
+          <div class="studio-result" id="result-podcast_full">
+            <div class="studio-result-inner" id="content-podcast_full"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-podcast_chapters" onclick="generateChapterPodcasts()">
+            <div class="sbr-left"><span class="sbr-icon">📖</span><span class="sbr-label">Podcast by Chapters</span></div>
+            <div class="sbr-right"><span class="podcast-duration">10–15 min</span><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-podcast_chapters">
+            <div class="studio-result-inner" id="content-podcast_chapters"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-audio" onclick="studioGenerate('audio')">
+            <div class="sbr-left"><span class="sbr-icon">🎵</span><span class="sbr-label">Audio Overview</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-audio">
+            <div class="studio-result-inner audio-player-wrap" id="content-audio"></div>
+          </div>
+        </div>
+
+        <div class="studio-divider"></div>
+        <div class="studio-section-label">📄 Text Reports</div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-studyguide" onclick="studioGenerate('studyguide')">
+            <div class="sbr-left"><span class="sbr-icon">📑</span><span class="sbr-label">Study Guide</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-studyguide">
+            <div class="studio-result-inner md-content" id="content-studyguide"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-faq" onclick="studioGenerate('faq')">
+            <div class="sbr-left"><span class="sbr-icon">❓</span><span class="sbr-label">FAQ</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-faq">
+            <div class="studio-result-inner md-content" id="content-faq"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-briefing" onclick="studioGenerate('briefing')">
+            <div class="sbr-left"><span class="sbr-icon">📋</span><span class="sbr-label">Briefing Doc</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-briefing">
+            <div class="studio-result-inner md-content" id="content-briefing"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-timeline" onclick="studioGenerate('timeline')">
+            <div class="sbr-left"><span class="sbr-icon">⏱</span><span class="sbr-label">Timeline</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-timeline">
+            <div class="studio-result-inner md-content" id="content-timeline"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-glossary" onclick="studioGenerate('glossary')">
+            <div class="sbr-left"><span class="sbr-icon">📝</span><span class="sbr-label">Glossary</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-glossary">
+            <div class="studio-result-inner md-content" id="content-glossary"></div>
+          </div>
+        </div>
+
+        <div class="studio-divider"></div>
+        <div class="studio-section-label">🎨 Visuals</div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-mindmap" onclick="studioGenerate('mindmap')">
+            <div class="sbr-left"><span class="sbr-icon">🗺</span><span class="sbr-label">Mind Map</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-mindmap">
+            <div class="studio-result-inner" id="content-mindmap"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-infographic" onclick="studioGenerate('infographic')">
+            <div class="sbr-left"><span class="sbr-icon">📊</span><span class="sbr-label">Infographic</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-infographic">
+            <div class="studio-result-inner" id="content-infographic"></div>
+          </div>
+        </div>
+
+        <div class="studio-section">
+          <div class="studio-btn-row" id="sbr-presentation" onclick="studioGenerate('presentation')">
+            <div class="sbr-left"><span class="sbr-icon">📽</span><span class="sbr-label">Presentation</span></div>
+            <div class="sbr-right"><span class="sbr-arrow">▾</span></div>
+          </div>
+          <div class="studio-result" id="result-presentation">
+            <div class="studio-result-inner" id="content-presentation"></div>
+          </div>
+        </div>
+
+        <!-- bottom padding -->
+        <div style="height:20px"></div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
-<!-- ADD SOURCE MODAL -->
-<div class="modal-overlay" id="add-modal">
-  <div class="modal">
-    <button class="modal-close" onclick="closeAddModal()">✕</button>
-    <h2 data-i18n="addSource">Add source</h2>
-    <div class="modal-tabs">
-      <button class="modal-tab active" onclick="switchTab('upload')" data-i18n="uploadFile">Upload file</button>
-      <button class="modal-tab" onclick="switchTab('url')" data-i18n="pasteUrl">Paste URL</button>
+<!-- ── SHARE SCREEN ── -->
+<div id="screen-share">
+  <div class="share-banner">🔒 Readonly — <strong id="share-nb-name"></strong></div>
+  <div class="panels">
+    <div class="panel" id="panel-share-sources"
+         style="width:var(--sidebar-w);min-width:var(--sidebar-w);border-right:1px solid var(--border);background:var(--surface)">
+      <div class="panel-header"><span>Sources</span></div>
+      <div class="panel-body" id="share-sources-list" style="background:var(--surface)"></div>
     </div>
-    <div class="modal-tab-content active" id="tab-upload">
-      <div class="drop-area" id="file-drop-area" onclick="document.getElementById('file-input').click()">
-        <div class="drop-icon">📎</div>
-        <div id="drop-label" data-i18n="chooseFile">Choose or drag a file</div>
-        <div style="font-size:11px;margin-top:4px;color:var(--text3)">PDF, DOCX, TXT — up to 50MB</div>
+    <div class="panel" id="panel-share-chat" style="flex:1;background:var(--bg)">
+      <div class="panel-header"><span>Chat</span></div>
+      <div class="chat-messages" id="share-chat-messages">
+        <div class="chat-welcome">
+          <div class="welcome-title">Ask about this notebook</div>
+          <div class="welcome-sub">Shared read-only view — you can still ask questions</div>
+        </div>
       </div>
-      <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt,.md" onchange="fileSelected(this)">
-      <div style="margin-top:12px">
-        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:6px" data-i18n="sourceType">Source type</label>
-        <select id="source-type-select" class="input-field" style="height:34px">
-          <option value="document" data-i18n="typeDocument">Document</option>
-          <option value="book" data-i18n="typeBook">Book</option>
-          <option value="brandbook" data-i18n="typeBrandbook">Brandbook</option>
-        </select>
+      <div class="chat-input-area">
+        <div class="chat-input-wrap">
+          <textarea id="share-chat-input" rows="1" placeholder="Ask about the sources…" maxlength="4000"></textarea>
+          <button class="btn-send" id="share-btn-send" onclick="shareChat()">↑</button>
+        </div>
       </div>
-      <button class="btn-primary" id="btn-upload" onclick="uploadFile()" disabled data-i18n="upload">Upload</button>
-    </div>
-    <div class="modal-tab-content" id="tab-url">
-      <input class="input-field" type="url" id="url-input" placeholder="https://..." oninput="validateUrl()" onkeydown="if(event.key==='Enter')uploadUrl()">
-      <button class="btn-primary" id="btn-url" onclick="uploadUrl()" disabled data-i18n="addUrl">Add URL</button>
     </div>
   </div>
 </div>
 
-<!-- LIGHTBOX -->
-<div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+</div><!-- #app -->
+
+<!-- ── MODALS ── -->
+
+<div class="modal-overlay" id="create-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeCreateModal()">✕</button>
+    <h2>New Notebook</h2>
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="new-nb-name" placeholder="My Research" maxlength="100">
+    </div>
+    <div class="form-group">
+      <label>Description (optional)</label>
+      <input type="text" id="new-nb-desc" placeholder="What is this about?" maxlength="200">
+    </div>
+    <button class="btn-primary" onclick="createNotebook()">Create Notebook</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAddModal()">✕</button>
+    <h2>Add source</h2>
+    <div class="modal-tabs">
+      <button class="modal-tab active" onclick="switchTab('upload')">📄 Upload file</button>
+      <button class="modal-tab" onclick="switchTab('url')">🌐 Paste URL</button>
+    </div>
+    <div class="modal-tab-content active" id="tab-upload">
+      <div class="file-drop-area" id="file-drop-area" onclick="document.getElementById('file-input').click()">
+        <div class="drop-icon">⬆</div>
+        <p id="drop-label">Click to choose or drag &amp; drop</p>
+        <small>PDF · DOCX · TXT · max 50MB</small>
+      </div>
+      <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" onchange="fileSelected(this)">
+      <div class="form-group" style="margin-top:12px">
+        <label>Source Type</label>
+        <select id="upload-source-type">
+          <option value="document">📄 Document</option>
+          <option value="book">📚 Book</option>
+          <option value="brandbook">🎨 Brandbook</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="btn-upload" onclick="uploadFile()" disabled>Upload file</button>
+    </div>
+    <div class="modal-tab-content" id="tab-url">
+      <div class="form-group">
+        <label>URL</label>
+        <input type="url" id="url-input" placeholder="https://example.com/article" oninput="validateUrl()">
+      </div>
+      <div class="form-group">
+        <label>Source Type</label>
+        <select id="url-source-type">
+          <option value="document">📄 Document / Article</option>
+          <option value="url">🌐 Web Page</option>
+          <option value="book">📚 Book</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="btn-url" onclick="uploadUrl()" disabled>Add URL</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="share-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeShareModal()">✕</button>
+    <h2>Share Notebook</h2>
+    <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:16px">Anyone with the link can view and chat (read-only).</p>
+    <div id="share-modal-content"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="script-modal">
+  <div class="modal" style="width:640px">
+    <button class="modal-close" onclick="closePodcastScriptModal()">✕</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h2 style="margin:0">📜 Podcast Script</h2>
+      <a id="script-modal-download" href="#" download style="font-size:12px;color:var(--accent);font-weight:500;text-decoration:none">⬇ Download .md</a>
+    </div>
+    <div id="script-modal-body" style="max-height:65vh;overflow-y:auto"></div>
+  </div>
+</div>
+
+<div class="lightbox-overlay" id="lightbox" onclick="closeLightbox()">
   <img id="lightbox-img" src="" alt="">
 </div>
 
-<!-- TOASTS -->
 <div id="toast-container"></div>
 
-
 <script>
-
-function switchMainTab(tab) {
-  document.getElementById('view-chat').style.display = tab==='chat'?'flex':'none';
-  document.getElementById('view-map').style.display  = tab==='map' ?'flex':'none';
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  const tb = document.getElementById('tab-'+tab);
-  if(tb) tb.classList.add('active');
-}
-
+// ── STATE ─────────────────────────────────────────────────────────────────────
 const state = {
   notebooks: [],
   currentNbId: null,
@@ -850,63 +1139,70 @@ const state = {
   shareChatHistory: [],
 };
 
-let currentLang = localStorage.getItem('notelm_lang') || 'ru';
+// ── LANGUAGE — two separate vars ──────────────────────────────────────────────
+let currentLang = localStorage.getItem('notelm_lang') || 'en';
 let genLang     = localStorage.getItem('gen_lang')    || 'ru';
 
+// ── UTILS ─────────────────────────────────────────────────────────────────────
 function escHtml(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function fmtDate(iso) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('default', {month:'short',day:'numeric',year:'numeric'});
+  return new Date(iso).toLocaleDateString('default',{month:'short',day:'numeric',year:'numeric'});
 }
 function toast(msg, type='info', duration=3200) {
   const el = document.createElement('div');
-  el.className = `toast ${type}`; el.textContent = msg;
+  el.className = `toast ${type}`;
+  el.textContent = msg;
   document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => el.remove(), duration);
+  setTimeout(()=>el.remove(), duration);
 }
 function getSourceIcon(src) {
   const st = src.source_type || src.type;
-  if (st === 'book')      return '📚';
-  if (st === 'brandbook') return '🎨';
-  if (src.type === 'url' || st === 'url') return '🌐';
+  if (st==='book')      return '📚';
+  if (st==='brandbook') return '🎨';
+  if (src.type==='url'||st==='url') return '🌐';
   const n = (src.name||'').toLowerCase();
-  if (n.endsWith('.pdf'))              return '📄';
+  if (n.endsWith('.pdf'))  return '📄';
   if (n.endsWith('.docx')||n.endsWith('.doc')) return '📝';
   return '📃';
 }
 function getSourceTypeBadge(src) {
   const st = src.source_type;
-  if (!st || st === 'document') return '';
-  const labels = {book:'Book', brandbook:'Brandbook', url:'Web', youtube:'YouTube'};
+  if (!st||st==='document') return '';
+  const labels = {book:'Book',brandbook:'Brandbook',url:'Web',youtube:'YouTube'};
   return `<span class="source-type-badge ${st}">${labels[st]||st}</span>`;
 }
+
+// ── LANGUAGE TOGGLES ──────────────────────────────────────────────────────────
 function toggleLang() {
-  currentLang = currentLang === 'en' ? 'ru' : 'en';
+  currentLang = currentLang==='en'?'ru':'en';
   localStorage.setItem('notelm_lang', currentLang);
-  document.getElementById('btn-ui-lang').textContent = currentLang.toUpperCase();
+  document.getElementById('btn-lang').textContent = currentLang.toUpperCase();
 }
 function toggleGenLang() {
-  genLang = genLang === 'ru' ? 'en' : 'ru';
+  genLang = genLang==='ru'?'en':'ru';
   localStorage.setItem('gen_lang', genLang);
   document.getElementById('btn-gen-lang').textContent = genLang.toUpperCase();
 }
 
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
 function goHome() {
-  state.currentNbId = null; state.sources = [];
+  state.currentNbId=null; state.sources=[];
   state.activeSids.clear(); history.pushState(null,'','/');
   showScreen('notebooks'); loadNotebooks();
 }
 function showScreen(screen) {
-  document.getElementById('screen-notebooks').style.display = screen==='notebooks' ? 'flex' : 'none';
-  document.getElementById('screen-notebook').style.display  = screen==='notebook'  ? 'flex' : 'none';
-  document.getElementById('screen-share').style.display     = screen==='share'     ? 'flex' : 'none';
-  document.getElementById('header-home-area').style.display     = screen==='notebooks' ? '' : 'none';
-  document.getElementById('header-notebook-area').style.display = screen==='notebook'  ? '' : 'none';
-  document.getElementById('btn-share-nb').style.display         = screen==='notebook'  ? '' : 'none';
+  document.getElementById('screen-notebooks').style.display = screen==='notebooks'?'flex':'none';
+  document.getElementById('screen-notebook').style.display  = screen==='notebook' ?'flex':'none';
+  document.getElementById('screen-share').style.display     = screen==='share'    ?'flex':'none';
+  document.getElementById('header-home-area').style.display     = screen==='notebooks'?'':'none';
+  document.getElementById('header-notebook-area').style.display = screen==='notebook' ?'':'none';
+  document.getElementById('btn-share-nb').style.display         = screen==='notebook' ?'':'none';
 }
 
+// ── NOTEBOOKS ─────────────────────────────────────────────────────────────────
 async function loadNotebooks() {
   try {
     const res = await fetch('/api/notebooks');
@@ -914,17 +1210,17 @@ async function loadNotebooks() {
     renderNotebooks();
     document.getElementById('header-nb-count').textContent =
       `${state.notebooks.length} notebook${state.notebooks.length!==1?'s':''}`;
-  } catch(e) { console.error(e); }
+  } catch(e){ console.error(e); }
 }
 function renderNotebooks() {
   const grid = document.getElementById('notebooks-grid');
   if (!state.notebooks.length) {
-    grid.innerHTML = `<div class="notebooks-empty" style="grid-column:1/-1">
+    grid.innerHTML=`<div class="notebooks-empty" style="grid-column:1/-1">
       <div class="emoji">📚</div><h2>No notebooks yet</h2>
       <p>Create your first notebook to start researching</p></div>`;
     return;
   }
-  grid.innerHTML = state.notebooks.map(nb => `
+  grid.innerHTML = state.notebooks.map(nb=>`
     <div class="notebook-card" onclick="openNotebook('${nb.id}')">
       <button class="notebook-card-delete" onclick="deleteNotebook('${nb.id}',event)" title="Delete">✕</button>
       <div class="notebook-card-icon">📓</div>
@@ -937,14 +1233,14 @@ function renderNotebooks() {
     </div>`).join('');
 }
 async function openNotebook(nid) {
-  state.currentNbId = nid; state.sources = [];
-  state.activeSids.clear(); state.chatHistory = []; state.pollingIds.clear();
-  const nb = state.notebooks.find(n => n.id === nid);
+  state.currentNbId=nid; state.sources=[];
+  state.activeSids.clear(); state.chatHistory=[]; state.pollingIds.clear();
+  const nb = state.notebooks.find(n=>n.id===nid);
   history.pushState(null,'',`/#notebook/${nid}`);
   showScreen('notebook');
   if (nb) {
     document.getElementById('notebook-title-input').value = nb.name;
-    document.getElementById('btn-share-nb').classList.toggle('shared', !!nb.share_token);
+    document.getElementById('btn-share-nb').classList.toggle('shared',!!nb.share_token);
   }
   resetStudio(); clearChat(); await loadSources();
 }
@@ -952,12 +1248,12 @@ async function saveNotebookTitle() {
   if (!state.currentNbId) return;
   const n = document.getElementById('notebook-title-input').value.trim();
   if (!n) return;
-  await fetch(`/api/notebooks/${state.currentNbId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});
+  await fetch(`/api/notebooks/${state.currentNbId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});
 }
-async function deleteNotebook(nid, e) {
+async function deleteNotebook(nid,e) {
   e.stopPropagation();
   if (!confirm('Delete this notebook and all its sources?')) return;
-  await fetch(`/api/notebooks/${nid}`, {method:'DELETE'});
+  await fetch(`/api/notebooks/${nid}`,{method:'DELETE'});
   await loadNotebooks();
   toast('Notebook deleted','success');
 }
@@ -970,26 +1266,27 @@ function openCreateModal() {
 }
 function closeCreateModal() { document.getElementById('create-modal').classList.remove('open'); }
 async function createNotebook() {
-  const name = document.getElementById('new-nb-name').value.trim() || 'New Notebook';
+  const name = document.getElementById('new-nb-name').value.trim()||'New Notebook';
   const desc = document.getElementById('new-nb-desc').value.trim();
   const res = await fetch('/api/notebooks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,description:desc})});
   const nb = await res.json();
   closeCreateModal(); toast('Notebook created!','success');
   state.notebooks.unshift(nb); await openNotebook(nb.id);
 }
-document.getElementById('create-modal').addEventListener('keydown',e=>{ if(e.key==='Enter')createNotebook(); });
+document.getElementById('create-modal').addEventListener('keydown',e=>{if(e.key==='Enter')createNotebook();});
 
+// ── SOURCES ───────────────────────────────────────────────────────────────────
 async function loadSources() {
   if (!state.currentNbId) return;
   try {
     const res = await fetch(`/api/notebooks/${state.currentNbId}/sources`);
     state.sources = await res.json();
-    state.sources.forEach(s => {
+    state.sources.forEach(s=>{
       if (s.status==='ready') state.activeSids.add(s.id);
-      if ((s.status==='processing'||s.status==='pending') && !state.pollingIds.has(s.id)) startPolling(s.id);
+      if ((s.status==='processing'||s.status==='pending')&&!state.pollingIds.has(s.id)) startPolling(s.id);
     });
     renderSources();
-  } catch(e) { console.error(e); }
+  } catch(e){ console.error(e); }
 }
 function startPolling(sid) {
   if (state.pollingIds.has(sid)) return;
@@ -999,40 +1296,39 @@ async function _pollSource(sid) {
   if (!state.pollingIds.has(sid)||!state.currentNbId) return;
   try {
     const res = await fetch(`/api/notebooks/${state.currentNbId}/sources/${sid}`);
-    if (!res.ok) { state.pollingIds.delete(sid); return; }
+    if (!res.ok){ state.pollingIds.delete(sid); return; }
     const src = await res.json();
     const idx = state.sources.findIndex(s=>s.id===sid);
     if (idx!==-1) state.sources[idx]=src; else state.sources.push(src);
-    if (src.status==='ready') { state.activeSids.add(sid); state.pollingIds.delete(sid); }
-    else if (src.status==='error') { state.pollingIds.delete(sid); }
+    if (src.status==='ready'){ state.activeSids.add(sid); state.pollingIds.delete(sid); }
+    else if (src.status==='error'){ state.pollingIds.delete(sid); }
     else { setTimeout(()=>_pollSource(sid),2500); }
     renderSources();
-  } catch(e) { state.pollingIds.delete(sid); }
+  } catch(e){ state.pollingIds.delete(sid); }
 }
 function renderSources() {
   const el = document.getElementById('sources-list');
   if (!state.sources.length) {
-    el.innerHTML=`<div class="empty-sources"><div class="emoji">📂</div><div>No sources yet</div><div style="font-size:11px;margin-top:3px">Upload files or paste a URL</div></div>`;
+    el.innerHTML=`<div class="empty-sources"><div class="emoji">📂</div><div>No sources yet</div><div style="font-size:11px;margin-top:2px">Upload files or paste a URL</div></div>`;
     return;
   }
-  const countEl2 = document.getElementById('sources-count');
-  if(countEl2) countEl2.textContent = state.sources.length + ' source' + (state.sources.length!==1?'s':'');
-  el.innerHTML = state.sources.map(src => {
+  el.innerHTML = state.sources.map(src=>{
     const polling = state.pollingIds.has(src.id);
-    const checked = state.activeSids.has(src.id);
-    const statusText = {'ready':'Ready','processing':'Processing...','pending':'Processing...','error':'Error'}[src.status] || src.status;
-    return `<div class="source-item ${checked?'checked active':''}" data-id="${src.id}" onclick="selectSourceItem('${src.id}')">
-      <input type="checkbox" class="source-check" ${checked?'checked':''}
-        onchange="toggleSource('${src.id}', this.checked)" onclick="event.stopPropagation()">
-      <span class="source-icon">${getSourceIcon(src)}</span>
+    const badge = getSourceTypeBadge(src);
+    return `<div class="source-item ${state.activeSids.has(src.id)?'selected':''}" data-id="${src.id}" onclick="selectSourceItem('${src.id}')">
+      <input type="checkbox" class="source-check" ${state.activeSids.has(src.id)?'checked':''}
+        onchange="toggleSource('${src.id}',this.checked)" onclick="event.stopPropagation()">
+      <div class="source-icon-wrap">${getSourceIcon(src)}</div>
       <div class="source-info">
         <div class="source-name" title="${escHtml(src.name)}">${escHtml(src.name)}</div>
         <div class="source-meta">
           <span class="status-dot ${src.status}"></span>
-          <span class="source-status-text">${statusText}${polling?' <span class=\"spinner\" style=\"display:inline-block;width:8px;height:8px;border-width:1px\"></span>':''}</span>
+          <span>${src.status}</span>
+          ${badge}
+          ${polling?'<span class="source-spinner"></span>':''}
         </div>
       </div>
-      <button class="source-delete" onclick="deleteSource('${src.id}', event)">×</button>
+      <button class="source-delete" onclick="deleteSource('${src.id}',event)" title="Delete">×</button>
     </div>`;
   }).join('');
 }
@@ -1056,7 +1352,7 @@ async function deleteSource(sid,e) {
 let activeSourceForChapters = null;
 function selectSourceItem(sid) {
   const src = state.sources.find(s=>s.id===sid);
-  if (src && src.source_type==='book' && src.status==='ready') showChapterTree(src);
+  if (src&&src.source_type==='book'&&src.status==='ready') showChapterTree(src);
   else hideChapterTree();
 }
 function hideChapterTree() {
@@ -1072,10 +1368,10 @@ async function showChapterTree(src) {
       const full = await res.json(); chapters = full.chapters;
       const idx = state.sources.findIndex(s=>s.id===src.id);
       if (idx!==-1) state.sources[idx]={...state.sources[idx],chapters};
-    } catch(e) { chapters=[]; }
+    } catch(e){ chapters=[]; }
   }
   const treeEl = document.getElementById('chapter-tree');
-  if (!chapters||!chapters.length) { treeEl.style.display='none'; return; }
+  if (!chapters||!chapters.length){ treeEl.style.display='none'; return; }
   treeEl.style.display='block';
   document.getElementById('chapter-tree-list').innerHTML = chapters.map((ch,i)=>`
     <div class="chapter-item" id="chapter-item-${i}" onclick="openChapterDetail(${i})">
@@ -1088,16 +1384,13 @@ function openChapterDetail(idx) {
   const src = state.sources.find(s=>s.id===activeSourceForChapters);
   if (!src||!src.chapters) return;
   const ch = src.chapters[idx];
-  if (ch) {
-    document.getElementById('chat-input').value=`Расскажи подробно о главе "${ch.title}"`;
-    switchPanelTab('chat');
-    document.getElementById('chat-input').focus();
-  }
+  if (ch){ document.getElementById('chat-input').value=`Расскажи подробно о главе "${ch.title}"`; switchPanelTab('chat'); document.getElementById('chat-input').focus(); }
 }
 
+// ── FILE UPLOAD ───────────────────────────────────────────────────────────────
 let selectedFile = null;
-function openAddModal() { document.getElementById('add-modal').classList.add('open'); switchTab('upload'); }
-function closeAddModal() {
+function openAddModal(){ document.getElementById('add-modal').classList.add('open'); switchTab('upload'); }
+function closeAddModal(){
   document.getElementById('add-modal').classList.remove('open');
   selectedFile=null;
   document.getElementById('file-input').value='';
@@ -1106,30 +1399,25 @@ function closeAddModal() {
   document.getElementById('url-input').value='';
   const burl=document.getElementById('btn-url'); burl.disabled=true; burl.textContent='Add URL';
 }
-document.getElementById('add-modal').addEventListener('click',e=>{if(e.target===document.getElementById('add-modal'))closeAddModal();});
-function switchTab(tab) {
+document.getElementById('add-modal').addEventListener('click',e=>{ if(e.target===document.getElementById('add-modal'))closeAddModal(); });
+function switchTab(tab){
   document.querySelectorAll('.modal-tab').forEach((el,i)=>el.classList.toggle('active',tab==='upload'?i===0:i===1));
   document.getElementById('tab-upload').classList.toggle('active',tab==='upload');
   document.getElementById('tab-url').classList.toggle('active',tab==='url');
 }
-function fileSelected(input) {
-  if (input.files[0]) {
-    selectedFile=input.files[0];
-    document.getElementById('drop-label').textContent=selectedFile.name;
-    document.getElementById('btn-upload').disabled=false;
-  }
+function fileSelected(input){
+  if (input.files[0]){ selectedFile=input.files[0]; document.getElementById('drop-label').textContent=selectedFile.name; document.getElementById('btn-upload').disabled=false; }
 }
-function validateUrl() {
+function validateUrl(){
   const v=document.getElementById('url-input').value.trim();
   document.getElementById('btn-url').disabled=!v.startsWith('http');
 }
-async function uploadFile() {
+async function uploadFile(){
   if (!selectedFile||!state.currentNbId) return;
-  const btn=document.getElementById('btn-upload');
-  btn.disabled=true; btn.textContent='Uploading…';
+  const btn=document.getElementById('btn-upload'); btn.disabled=true; btn.textContent='Uploading…';
   const fd=new FormData();
   fd.append('file',selectedFile); fd.append('lang',genLang);
-  fd.append('source_type',(document.getElementById('source-type-select')||{}).value||'document');
+  fd.append('source_type',document.getElementById('upload-source-type').value||'document');
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`,{method:'POST',body:fd});
     const data=await res.json();
@@ -1137,16 +1425,15 @@ async function uploadFile() {
     closeAddModal(); await loadSources();
     toast('Source added — processing…','success');
     if (data.id) startPolling(data.id);
-  } catch(e) { toast(e.message,'error'); btn.disabled=false; btn.textContent='Upload file'; }
+  } catch(e){ toast(e.message,'error'); btn.disabled=false; btn.textContent='Upload file'; }
 }
-async function uploadUrl() {
+async function uploadUrl(){
   const url=document.getElementById('url-input').value.trim();
   if (!url||!state.currentNbId) return;
-  const btn=document.getElementById('btn-url');
-  btn.disabled=true; btn.textContent='Adding…';
+  const btn=document.getElementById('btn-url'); btn.disabled=true; btn.textContent='Adding…';
   const fd=new FormData();
   fd.append('url',url); fd.append('lang',genLang);
-  fd.append('source_type',(document.getElementById('source-type-select')||{}).value||'document');
+  fd.append('source_type',document.getElementById('url-source-type').value||'document');
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`,{method:'POST',body:fd});
     const data=await res.json();
@@ -1154,7 +1441,7 @@ async function uploadUrl() {
     closeAddModal(); await loadSources();
     toast('URL added — processing…','success');
     if (data.id) startPolling(data.id);
-  } catch(e) { toast(e.message,'error'); btn.disabled=false; btn.textContent='Add URL'; }
+  } catch(e){ toast(e.message,'error'); btn.disabled=false; btn.textContent='Add URL'; }
 }
 
 const dropZone=document.getElementById('drop-zone');
@@ -1169,9 +1456,9 @@ dropZone.addEventListener('drop',async e=>{
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/upload`,{method:'POST',body:fd});
     const data=await res.json();
-    if (res.ok) { await loadSources(); toast('Source added — processing…','success'); if(data.id)startPolling(data.id); }
+    if (res.ok){ await loadSources(); toast('Source added — processing…','success'); if(data.id)startPolling(data.id); }
     else toast(data.detail||'Upload failed','error');
-  } catch(e) { toast('Upload failed','error'); }
+  } catch(e){ toast('Upload failed','error'); }
 });
 const fda=document.getElementById('file-drop-area');
 fda.addEventListener('dragover',e=>{e.preventDefault();fda.classList.add('dragover');});
@@ -1179,16 +1466,17 @@ fda.addEventListener('dragleave',()=>fda.classList.remove('dragover'));
 fda.addEventListener('drop',e=>{
   e.preventDefault(); fda.classList.remove('dragover');
   const f=e.dataTransfer.files[0];
-  if (f) { selectedFile=f; document.getElementById('drop-label').textContent=f.name; document.getElementById('btn-upload').disabled=false; }
+  if (f){ selectedFile=f; document.getElementById('drop-label').textContent=f.name; document.getElementById('btn-upload').disabled=false; }
 });
 
-async function openShareModal() {
+// ── SHARE ─────────────────────────────────────────────────────────────────────
+async function openShareModal(){
   if (!state.currentNbId) return;
   const nb=await (await fetch(`/api/notebooks/${state.currentNbId}`)).json();
   const mc=document.getElementById('share-modal-content');
-  if (nb.share_token) {
+  if (nb.share_token){
     const url=`${location.origin}/share/${nb.share_token}`;
-    mc.innerHTML=`<p style="font-size:12px;color:var(--indigo);font-weight:600;margin-bottom:8px">✅ Sharing active</p>
+    mc.innerHTML=`<p style="font-size:12px;color:var(--accent);font-weight:500;margin-bottom:8px">✓ Sharing active</p>
       <div class="share-url-box"><input class="share-url-input" id="share-url-display" value="${url}" readonly>
       <button class="btn-copy" onclick="copyShareUrl()">Copy</button></div>
       <button class="btn-revoke" onclick="revokeShare()">Revoke sharing</button>`;
@@ -1199,35 +1487,36 @@ async function openShareModal() {
   }
   document.getElementById('share-modal').classList.add('open');
 }
-function closeShareModal() { document.getElementById('share-modal').classList.remove('open'); }
-async function enableShare() {
+function closeShareModal(){ document.getElementById('share-modal').classList.remove('open'); }
+async function enableShare(){
   await fetch(`/api/notebooks/${state.currentNbId}/share`,{method:'POST'});
   closeShareModal(); await openShareModal(); toast('Share link created!','success');
 }
-async function revokeShare() {
+async function revokeShare(){
   if (!confirm('Revoke? Link will stop working.')) return;
   await fetch(`/api/notebooks/${state.currentNbId}/share`,{method:'DELETE'});
   closeShareModal(); document.getElementById('btn-share-nb').classList.remove('shared');
   toast('Sharing revoked','success');
 }
-function copyShareUrl() {
+function copyShareUrl(){
   const inp=document.getElementById('share-url-display');
   navigator.clipboard.writeText(inp.value).then(()=>toast('Link copied!','success')).catch(()=>{inp.select();document.execCommand('copy');toast('Link copied!','success');});
 }
 
+// ── CHAT ──────────────────────────────────────────────────────────────────────
 const chatInput=document.getElementById('chat-input');
-chatInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
-chatInput.addEventListener('input',()=>{chatInput.style.height='auto';chatInput.style.height=Math.min(chatInput.scrollHeight,120)+'px';});
+chatInput.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); } });
+chatInput.addEventListener('input',()=>{ chatInput.style.height='auto'; chatInput.style.height=Math.min(chatInput.scrollHeight,120)+'px'; });
 
-function usesuggestion(btn) { chatInput.value=btn.textContent; chatInput.focus(); }
+function usesuggestion(btn){ chatInput.value=btn.textContent; chatInput.focus(); }
 
-function clearChat() {
+function clearChat(){
   state.chatHistory=[];
   const msgs=document.getElementById('chat-messages');
   msgs.innerHTML='';
   const div=document.createElement('div'); div.id='chat-welcome'; div.className='chat-welcome';
   div.innerHTML=`<div class="welcome-title">Ask about your sources</div>
-    <div class="welcome-sub">Select sources on the left, then ask a question</div>
+    <div class="welcome-sub">Select sources on the left, then ask anything</div>
     <div class="suggestions-grid">
       <button class="suggestion-btn" onclick="usesuggestion(this)">Summarize the key points of my sources</button>
       <button class="suggestion-btn" onclick="usesuggestion(this)">What are the main arguments made?</button>
@@ -1236,8 +1525,7 @@ function clearChat() {
     </div>`;
   msgs.appendChild(div);
 }
-
-async function sendMessage() {
+async function sendMessage(){
   const q=chatInput.value.trim(); if (!q) return;
   const welcome=document.getElementById('chat-welcome'); if (welcome) welcome.remove();
   chatInput.value=''; chatInput.style.height='auto';
@@ -1254,31 +1542,32 @@ async function sendMessage() {
     const answer=data.answer||'';
     state.chatHistory.push({role:'assistant',content:answer});
     appendAiMsg(answer,'chat-messages');
-  } catch(e) { thinkEl.remove(); appendAiMsg('⚠️ '+e.message,'chat-messages'); }
+  } catch(e){ thinkEl.remove(); appendAiMsg('⚠️ '+e.message,'chat-messages'); }
   finally { document.getElementById('btn-send').disabled=false; chatInput.focus(); }
 }
-function appendUserMsg(text,cid) {
+function appendUserMsg(text,cid){
   const msgs=document.getElementById(cid);
   const div=document.createElement('div'); div.className='msg user';
   div.innerHTML=`<div class="msg-avatar">U</div><div class="msg-bubble">${escHtml(text)}</div>`;
   msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
 }
-function appendThinking(cid) {
+function appendThinking(cid){
   const msgs=document.getElementById(cid);
   const div=document.createElement('div'); div.className='thinking';
-  div.innerHTML=`<span>Thinking</span><span class="dots"><span></span><span></span><span></span></span>`;
+  div.innerHTML=`<span class="dots"><span></span><span></span><span></span></span><span style="font-size:12px;color:var(--text-tertiary)">Thinking</span>`;
   msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight; return div;
 }
-function appendAiMsg(text,cid) {
+function appendAiMsg(text,cid){
   const msgs=document.getElementById(cid);
   const div=document.createElement('div'); div.className='msg ai';
-  div.innerHTML=`<div class="msg-avatar">AI</div><div class="msg-bubble">${renderMarkdown(text)}</div>`;
+  div.innerHTML=`<div class="msg-avatar">KS</div><div class="msg-bubble">${renderMarkdown(text)}</div>`;
   msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
 }
 
+// Share chat
 const sChatInput=document.getElementById('share-chat-input');
-sChatInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();shareChat();}});
-async function shareChat() {
+sChatInput.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); shareChat(); } });
+async function shareChat(){
   const q=sChatInput.value.trim(); if (!q) return;
   sChatInput.value='';
   document.getElementById('share-btn-send').disabled=true;
@@ -1294,13 +1583,14 @@ async function shareChat() {
     const answer=data.answer||'';
     state.shareChatHistory.push({role:'assistant',content:answer});
     appendAiMsg(answer,'share-chat-messages');
-  } catch(e) { thinkEl.remove(); appendAiMsg('⚠️ '+e.message,'share-chat-messages'); }
+  } catch(e){ thinkEl.remove(); appendAiMsg('⚠️ '+e.message,'share-chat-messages'); }
   finally { document.getElementById('share-btn-send').disabled=false; }
 }
 
-function renderMarkdown(md) {
+// ── MARKDOWN RENDERER ─────────────────────────────────────────────────────────
+function renderMarkdown(md){
   let s=escHtml(md);
-  s=s.replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre style="background:var(--surface3);padding:10px;border-radius:var(--r-sm);overflow-x:auto;font-size:11.5px;margin:6px 0"><code>$1</code></pre>');
+  s=s.replace(/```[\w]*\n?([\s\S]*?)```/g,'<pre><code>$1</code></pre>');
   s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
   s=s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
   s=s.replace(/\*([^*]+)\*/g,'<em>$1</em>');
@@ -1308,7 +1598,7 @@ function renderMarkdown(md) {
   s=s.replace(/^## (.+)$/gm,'<h2>$1</h2>');
   s=s.replace(/^# (.+)$/gm,'<h1>$1</h1>');
   s=s.replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>');
-  s=s.replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">');
+  s=s.replace(/^---+$/gm,'<hr>');
   s=s.replace(/^[\*\-] (.+)$/gm,'<li>$1</li>');
   s=s.replace(/(<li>.*<\/li>\n?)+/g,m=>`<ul>${m}</ul>`);
   s=s.replace(/^\d+\. (.+)$/gm,'<li>$1</li>');
@@ -1324,34 +1614,33 @@ function renderMarkdown(md) {
   return '<p>'+s+'</p>'.replace(/<p><\/p>/g,'');
 }
 
-function switchPanelTab(tab) {
+// ── PANEL TABS ────────────────────────────────────────────────────────────────
+function switchPanelTab(tab){
   const chatView=document.getElementById('chat-messages');
   const chatInp=document.getElementById('chat-input-area');
   const mapView=document.getElementById('panel-map');
   document.getElementById('tab-chat-btn').classList.toggle('active',tab==='chat');
   document.getElementById('tab-map-btn').classList.toggle('active',tab==='map');
-  if (tab==='chat') {
-    chatView.style.display=''; chatInp.style.display=''; mapView.style.display='none';
-  } else {
-    chatView.style.display='none'; chatInp.style.display='none'; mapView.style.display='flex';
-  }
+  if (tab==='chat'){ chatView.style.display=''; chatInp.style.display=''; mapView.style.display='none'; }
+  else { chatView.style.display='none'; chatInp.style.display='none'; mapView.style.display='flex'; }
 }
 
+// ── KNOWLEDGE MAP ─────────────────────────────────────────────────────────────
 let knowledgeMapData=null;
-async function analyzeLinks() {
+async function analyzeLinks(){
   const sids=Array.from(state.activeSids);
-  if (sids.length<2) { toast('Select at least 2 sources','error'); return; }
+  if (sids.length<2){ toast('Select at least 2 sources','error'); return; }
   const statusEl=document.getElementById('links-status');
-  statusEl.textContent='⏳ Analyzing links…';
+  statusEl.textContent='⏳ Analyzing…';
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/analyze_links`,{method:'POST'});
     const data=await res.json();
     if (!res.ok) throw new Error(data.detail||'Analysis failed');
-    statusEl.textContent=`🔄 Analyzing ${data.source_count} sources…`;
+    statusEl.textContent=`Analyzing ${data.source_count} sources…`;
     pollLinks();
-  } catch(e) { statusEl.textContent='⚠️ '+e.message; }
+  } catch(e){ statusEl.textContent='⚠️ '+e.message; }
 }
-async function pollLinks() {
+async function pollLinks(){
   const statusEl=document.getElementById('links-status');
   let attempts=0;
   const poll=async()=>{
@@ -1359,29 +1648,30 @@ async function pollLinks() {
     try {
       const nbRes=await fetch(`/api/notebooks/${state.currentNbId}`);
       const nb=await nbRes.json();
-      if (nb.links_status==='ready') {
+      if (nb.links_status==='ready'){
         const linksRes=await fetch(`/api/notebooks/${state.currentNbId}/links`);
         const data=await linksRes.json();
         knowledgeMapData=data.links||[];
-        statusEl.textContent=`✅ ${knowledgeMapData.length} links found`;
+        statusEl.textContent=`${knowledgeMapData.length} links found`;
         renderKnowledgeMap(); return;
-      } else if (nb.links_status==='error') {
-        statusEl.textContent='⚠️ '+(nb.links_error||'Analysis error'); return;
+      } else if (nb.links_status==='error'){
+        statusEl.textContent='⚠️ '+(nb.links_error||'Error'); return;
       }
       if (attempts<30) setTimeout(poll,3000);
-      else statusEl.textContent='⏱️ Taking long — refresh later';
-    } catch(e) { if(attempts<30) setTimeout(poll,3000); }
+      else statusEl.textContent='Taking long — refresh later';
+    } catch(e){ if(attempts<30) setTimeout(poll,3000); }
   };
   setTimeout(poll,3000);
 }
-function renderKnowledgeMap() {
+function renderKnowledgeMap(){
   const links=knowledgeMapData||[];
   const svgEl=document.getElementById('knowledge-map-svg');
   const container=document.getElementById('knowledge-map-container');
   const W=container.clientWidth||600; const H=container.clientHeight||400;
   svgEl.innerHTML='';
-  if (!links.length) {
-    d3.select(svgEl).append('text').attr('x',W/2).attr('y',H/2).attr('text-anchor','middle').attr('fill','#585878').attr('font-size',14).text('No links found');
+  if (!links.length){
+    d3.select(svgEl).append('text').attr('x',W/2).attr('y',H/2).attr('text-anchor','middle')
+      .attr('fill','#4d4d5d').attr('font-size',14).text('No links found');
     return;
   }
   const nodeMap={};
@@ -1390,10 +1680,10 @@ function renderKnowledgeMap() {
     if (!nodeMap[l.source_b_id]) nodeMap[l.source_b_id]={id:l.source_b_id,name:l.source_b_name||l.source_b_id};
   });
   Array.from(state.activeSids).forEach(sid=>{
-    if (!nodeMap[sid]) { const s=state.sources.find(x=>x.id===sid); if(s) nodeMap[sid]={id:sid,name:s.name}; }
+    if (!nodeMap[sid]){ const s=state.sources.find(x=>x.id===sid); if(s) nodeMap[sid]={id:sid,name:s.name}; }
   });
   const nodes=Object.values(nodeMap);
-  const linkColors={confirms:'#22c55e',contradicts:'#ef4444',develops:'#6366f1',illustrates:'#f59e0b'};
+  const linkColors={confirms:'#3ecf8e',contradicts:'#f55',develops:'#7c7cf0',illustrates:'#f0a429'};
   const d3links=links.map(l=>({source:l.source_a_id,target:l.source_b_id,type:l.link_type,confidence:l.confidence||.5,explanation:l.explanation||''}));
 
   const simulation=d3.forceSimulation(nodes)
@@ -1404,12 +1694,6 @@ function renderKnowledgeMap() {
 
   const svg=d3.select(svgEl).attr('width',W).attr('height',H);
   const defs=svg.append('defs');
-  const filter=defs.append('filter').attr('id','node-glow');
-  filter.append('feGaussianBlur').attr('stdDeviation','3').attr('result','coloredBlur');
-  const feMerge=filter.append('feMerge');
-  feMerge.append('feMergeNode').attr('in','coloredBlur');
-  feMerge.append('feMergeNode').attr('in','SourceGraphic');
-
   Object.entries(linkColors).forEach(([type,color])=>{
     defs.append('marker').attr('id',`arrow-${type}`)
       .attr('viewBox','0 -5 10 10').attr('refX',30).attr('refY',0)
@@ -1418,30 +1702,29 @@ function renderKnowledgeMap() {
   });
 
   const linkEls=svg.append('g').selectAll('line').data(d3links).enter().append('line')
-    .attr('stroke',d=>linkColors[d.type]||'#8888a0')
+    .attr('stroke',d=>linkColors[d.type]||'#8b8b9a')
     .attr('stroke-width',d=>1+(d.confidence*2))
-    .attr('stroke-opacity',.65)
+    .attr('stroke-opacity',.55)
     .attr('marker-end',d=>`url(#arrow-${d.type})`);
   linkEls.append('title').text(d=>`${d.type}: ${d.explanation}`);
 
   const linkLabels=svg.append('g').selectAll('text').data(d3links).enter().append('text')
-    .attr('font-size',9).attr('fill',d=>linkColors[d.type]||'#8888a0').attr('text-anchor','middle').text(d=>d.type);
+    .attr('font-size',9).attr('fill',d=>linkColors[d.type]||'#8b8b9a').attr('text-anchor','middle').text(d=>d.type);
 
   const nodeEls=svg.append('g').selectAll('g').data(nodes).enter().append('g')
     .call(d3.drag()
-      .on('start',(event,d)=>{if(!event.active)simulation.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
-      .on('drag', (event,d)=>{d.fx=event.x;d.fy=event.y;})
-      .on('end',  (event,d)=>{if(!event.active)simulation.alphaTarget(0);d.fx=null;d.fy=null;}));
+      .on('start',(event,d)=>{ if(!event.active)simulation.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (event,d)=>{ d.fx=event.x; d.fy=event.y; })
+      .on('end',  (event,d)=>{ if(!event.active)simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
 
   nodeEls.append('circle').attr('r',26)
-    .attr('fill','#6366F1').attr('stroke','#111117').attr('stroke-width',2.5)
-    .style('filter','url(#node-glow)')
-    .on('mouseover',function(){d3.select(this).attr('r',30).attr('fill','#818CF8');})
-    .on('mouseout', function(){d3.select(this).attr('r',26).attr('fill','#6366F1');})
+    .attr('fill','#222226').attr('stroke','#7c7cf0').attr('stroke-width',1.5)
+    .on('mouseover',function(){ d3.select(this).attr('fill','#2c2c38'); })
+    .on('mouseout', function(){ d3.select(this).attr('fill','#222226'); })
     .append('title').text(d=>d.name);
 
   nodeEls.append('text').attr('text-anchor','middle').attr('dy','0.35em')
-    .attr('font-size',8.5).attr('fill','#fff').attr('font-weight','700').attr('pointer-events','none')
+    .attr('font-size',8).attr('fill','#ececed').attr('font-weight','600').attr('pointer-events','none')
     .text(d=>(d.name||'').slice(0,14));
 
   simulation.on('tick',()=>{
@@ -1451,33 +1734,35 @@ function renderKnowledgeMap() {
   });
 }
 
-async function showPodcastScript(sid) {
+// ── PODCAST SCRIPT ────────────────────────────────────────────────────────────
+async function showPodcastScript(sid){
   try {
     const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/${sid}/podcast_script`);
-    if (!res.ok) { toast('Script not available — generate the podcast first','error'); return; }
+    if (!res.ok){ toast('Script not available — generate the podcast first','error'); return; }
     const data=await res.json();
     document.getElementById('script-modal-body').innerHTML=renderPodcastScript(data.content||'');
     document.getElementById('script-modal-download').href=data.url||'#';
     document.getElementById('script-modal').classList.add('open');
-  } catch(e) { toast('Failed to load script','error'); }
+  } catch(e){ toast('Failed to load script','error'); }
 }
-function renderPodcastScript(text) {
+function renderPodcastScript(text){
   return text.split('\n').map(line=>{
     const m1=line.match(/^(Host 1|Ведущий 1):\s*(.*)/);
     const m2=line.match(/^(Host 2|Ведущий 2):\s*(.*)/);
     if (m1) return `<div class="script-host-1"><div class="script-host-label">${escHtml(m1[1])}</div><div class="script-host-text">${escHtml(m1[2])}</div></div>`;
     if (m2) return `<div class="script-host-2"><div class="script-host-label">${escHtml(m2[1])}</div><div class="script-host-text">${escHtml(m2[2])}</div></div>`;
-    if (line.startsWith('#')) return `<div style="font-weight:700;font-size:13.5px;margin:14px 0 4px;color:var(--text)">${escHtml(line.replace(/^#+\s*/,''))}</div>`;
+    if (line.startsWith('#')) return `<div style="font-weight:600;font-size:13px;margin:14px 0 4px;color:var(--text-primary)">${escHtml(line.replace(/^#+\s*/,''))}</div>`;
     if (line.trim()==='---') return '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">';
-    if (line.trim()) return `<div style="font-size:12px;color:var(--text4);margin:2px 0;font-style:italic">${escHtml(line)}</div>`;
+    if (line.trim()) return `<div style="font-size:12px;color:var(--text-tertiary);margin:2px 0;font-style:italic">${escHtml(line)}</div>`;
     return '';
   }).join('');
 }
-function closePodcastScriptModal() { document.getElementById('script-modal').classList.remove('open'); }
+function closePodcastScriptModal(){ document.getElementById('script-modal').classList.remove('open'); }
 
+// ── STUDIO ────────────────────────────────────────────────────────────────────
 const ALL_STUDIO_TYPES=['audio','podcast_full','podcast_chapters','mindmap','infographic','presentation','studyguide','faq','briefing','timeline','glossary'];
 
-function resetStudio() {
+function resetStudio(){
   ALL_STUDIO_TYPES.forEach(t=>{
     const r=document.getElementById(`result-${t}`); if(r) r.classList.remove('visible');
     const c=document.getElementById(`content-${t}`); if(c) c.innerHTML='';
@@ -1487,11 +1772,11 @@ function resetStudio() {
 }
 
 const GEN_STEPS = {
-  podcast_full: ['Analyzing content…','Building dialogue structure…','Writing script…','Converting to audio…'],
-  audio:        ['Reading summary…','Writing script…','Generating audio…'],
-  infographic:  ['Analyzing key data…','Generating visual…'],
+  podcast_full: ['Analyzing sources…','Mapping insights…','Writing dialogue…','Converting to audio…'],
+  audio:        ['Reading content…','Writing script…','Generating audio…'],
+  infographic:  ['Analyzing data…','Generating visual…'],
   mindmap:      ['Mapping concepts…','Rendering graph…'],
-  presentation: ['Building slides…','Formatting presentation…'],
+  presentation: ['Building slides…','Formatting…'],
   studyguide:   ['Generating study guide…'],
   faq:          ['Generating FAQ…'],
   briefing:     ['Writing briefing…'],
@@ -1499,33 +1784,34 @@ const GEN_STEPS = {
   glossary:     ['Extracting terms…'],
 };
 
-async function studioGenerate(type) {
+async function studioGenerate(type){
   if (state.generatingStudio.has(type)) return;
   const sids=Array.from(state.activeSids);
-  if (!sids.length) { toast('Select at least one source first','error'); return; }
+  if (!sids.length){ toast('Select at least one source first','error'); return; }
   const readySids=sids.filter(sid=>{ const s=state.sources.find(x=>x.id===sid); return s&&s.status==='ready'; });
-  if (!readySids.length) { toast('No ready sources — wait for processing to finish','error'); return; }
+  if (!readySids.length){ toast('No ready sources — wait for processing to finish','error'); return; }
 
   state.generatingStudio.add(type);
   const btnRow=document.getElementById(`sbr-${type}`);
   const resultEl=document.getElementById(`result-${type}`);
   const contentEl=document.getElementById(`content-${type}`);
-  const arrow=btnRow.querySelector('.sbr-arrow');
+  const arrowEl=btnRow.querySelector('.sbr-arrow');
   const label=btnRow.querySelector('.sbr-label');
   const origLabel=label.textContent;
 
   btnRow.style.pointerEvents='none'; btnRow.classList.add('loading');
-  arrow.style.display='none'; resultEl.classList.remove('visible');
+  if (arrowEl) arrowEl.style.display='none';
+  resultEl.classList.remove('visible');
 
   const steps=GEN_STEPS[type]||['Generating…'];
   let stepIdx=0;
-  label.innerHTML=`<span class="studio-spinner"></span> <span class="gen-step">${steps[0]}</span>`;
-  const stepInterval=setInterval(()=>{ stepIdx=(stepIdx+1)%steps.length; label.querySelector('.gen-step').textContent=steps[stepIdx]; },4000);
+  label.innerHTML=`<span class="studio-spinner"></span><span class="gen-step">${steps[0]}</span>`;
+  const stepInterval=setInterval(()=>{ stepIdx=(stepIdx+1)%steps.length; const gs=label.querySelector('.gen-step'); if(gs) gs.textContent=steps[stepIdx]; },4000);
 
   try {
     let resData;
     const nid=state.currentNbId;
-    if (readySids.length===1) {
+    if (readySids.length===1){
       const sid=readySids[0];
       const res=await fetch(`/api/notebooks/${nid}/sources/${sid}/generate/${type}?lang=${genLang}`,{method:'POST'});
       resData=await res.json();
@@ -1537,99 +1823,103 @@ async function studioGenerate(type) {
       if (!res.ok) throw new Error(resData.detail||'Generation failed');
     }
 
-    if (type==='audio') {
+    if (type==='audio'){
       contentEl.innerHTML=`<audio controls style="width:100%"><source src="${resData.url}" type="audio/mpeg"></audio>`;
-    } else if (type==='podcast_full') {
+    } else if (type==='podcast_full'){
       const podSid=resData._sid||null;
       contentEl.innerHTML=`
         <audio controls style="width:100%;margin-bottom:8px"><source src="${resData.url}" type="audio/mpeg"></audio>
-        ${podSid?`<button onclick="showPodcastScript('${podSid}')" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);font-family:var(--font)">📜 Read Dialogue Script</button>`:''}`;
-    } else if (type==='mindmap'||type==='infographic') {
+        ${podSid?`<button onclick="showPodcastScript('${podSid}')" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-active);cursor:pointer;font-size:12px;font-weight:500;color:var(--text-secondary);font-family:inherit">📜 Read Script</button>`:''}`;
+    } else if (type==='mindmap'||type==='infographic'){
       contentEl.innerHTML=`<img class="img-thumb" src="${resData.url}?t=${Date.now()}" alt="${type}" onclick="openLightbox('${resData.url}')">`;
-    } else if (type==='presentation') {
-      contentEl.innerHTML=`<p style="font-size:12px;color:var(--text3);margin-bottom:8px">Presentation ready!</p><a class="download-btn" href="${resData.url}" download>⬇️ Download PPTX</a>`;
+    } else if (type==='presentation'){
+      contentEl.innerHTML=`<p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">Ready!</p><a class="download-btn" href="${resData.url}" download>⬇ Download PPTX</a>`;
     } else {
       contentEl.innerHTML=renderMarkdown(resData.content||'');
     }
     resultEl.classList.add('visible'); btnRow.classList.add('open');
     toast(`${origLabel} ready!`,'success');
-  } catch(e) { toast(e.message,'error'); }
+  } catch(e){ toast(e.message,'error'); }
   finally {
     clearInterval(stepInterval);
     state.generatingStudio.delete(type);
     btnRow.style.pointerEvents=''; btnRow.classList.remove('loading');
-    label.textContent=origLabel; arrow.style.display='';
+    label.textContent=origLabel;
+    if (arrowEl) arrowEl.style.display='';
   }
 }
 
-async function generateChapterPodcasts() {
+async function generateChapterPodcasts(){
   const sids=Array.from(state.activeSids);
   const readySids=sids.filter(sid=>{ const s=state.sources.find(x=>x.id===sid); return s&&s.status==='ready'; });
   const bookSrc=state.sources.find(s=>readySids.includes(s.id)&&s.source_type==='book');
-  if (!bookSrc) { toast('Select a "Book" type source first','error'); return; }
+  if (!bookSrc){ toast('Select a "Book" type source first','error'); return; }
 
   let chapters=bookSrc.chapters;
-  if (!chapters) {
+  if (!chapters){
     try {
       const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/${bookSrc.id}`);
       const full=await res.json(); chapters=full.chapters||[];
-    } catch(e) { chapters=[]; }
+    } catch(e){ chapters=[]; }
   }
-  if (!chapters.length) { toast('No chapters found. Make sure source is processed as a book.','error'); return; }
+  if (!chapters.length){ toast('No chapters found. Make sure source is processed as a book.','error'); return; }
 
   const btnRow=document.getElementById('sbr-podcast_chapters');
   const resultEl=document.getElementById('result-podcast_chapters');
   const contentEl=document.getElementById('content-podcast_chapters');
   const label=btnRow.querySelector('.sbr-label');
-  const arrow=btnRow.querySelector('.sbr-arrow');
+  const arrowEl=btnRow.querySelector('.sbr-arrow');
 
   btnRow.style.pointerEvents='none';
-  arrow.style.display='none'; resultEl.classList.remove('visible');
-  contentEl.innerHTML=`<div style="padding:10px;font-size:12px;color:var(--text3)">Starting chapter podcasts…</div>`;
+  if (arrowEl) arrowEl.style.display='none';
+  resultEl.classList.remove('visible');
+  contentEl.innerHTML=`<div style="padding:10px;font-size:12px;color:var(--text-secondary)">Starting chapter podcasts…</div>`;
   resultEl.classList.add('visible');
 
   const items=[];
-  for (let i=0;i<Math.min(chapters.length,12);i++) {
-    label.innerHTML=`<span class="studio-spinner"></span> <span class="gen-step">Chapter ${i+1}/${Math.min(chapters.length,12)}…</span>`;
+  for (let i=0;i<Math.min(chapters.length,12);i++){
+    label.innerHTML=`<span class="studio-spinner"></span><span class="gen-step">Chapter ${i+1}/${Math.min(chapters.length,12)}…</span>`;
     try {
       const res=await fetch(`/api/notebooks/${state.currentNbId}/sources/${bookSrc.id}/generate/podcast_chapter/${i}?lang=${genLang}`,{method:'POST'});
       const data=await res.json();
       if (res.ok) items.push({title:data.chapter_title||`Chapter ${i+1}`,url:data.url});
-    } catch(e) { /* skip */ }
+    } catch(e){ /* skip */ }
   }
 
-  label.textContent='Podcast by Chapters'; arrow.style.display=''; btnRow.style.pointerEvents=''; btnRow.classList.add('open');
-  if (!items.length) { contentEl.innerHTML=`<div style="padding:10px;font-size:12px;color:var(--red)">Failed to generate chapter podcasts</div>`; return; }
+  label.textContent='Podcast by Chapters';
+  if (arrowEl) arrowEl.style.display='';
+  btnRow.style.pointerEvents=''; btnRow.classList.add('open');
+  if (!items.length){ contentEl.innerHTML=`<div style="padding:10px;font-size:12px;color:var(--red)">Failed to generate chapter podcasts</div>`; return; }
   contentEl.innerHTML=items.map((it,i)=>`
-    <div style="margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface2)">
-      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px">${escHtml(it.title)}</div>
+    <div style="margin-bottom:8px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-active)">
+      <div style="font-size:11px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">${escHtml(it.title)}</div>
       <audio controls style="width:100%"><source src="${it.url}?t=${Date.now()}" type="audio/mpeg"></audio>
     </div>`).join('');
   toast(`${items.length} chapter podcasts ready!`,'success');
 }
 
-function openLightbox(src) {
-  document.getElementById('lightbox-img').src=src;
-  document.getElementById('lightbox').classList.add('open');
-}
-function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+// ── LIGHTBOX ──────────────────────────────────────────────────────────────────
+function openLightbox(src){ document.getElementById('lightbox-img').src=src; document.getElementById('lightbox').classList.add('open'); }
+function closeLightbox(){ document.getElementById('lightbox').classList.remove('open'); }
 
+// ── KEYBOARD ──────────────────────────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
-  if (e.key==='Escape') { closeLightbox(); closeAddModal(); closeShareModal(); closeCreateModal(); closePodcastScriptModal(); }
+  if (e.key==='Escape'){ closeLightbox(); closeAddModal(); closeShareModal(); closeCreateModal(); closePodcastScriptModal(); }
 });
 document.getElementById('share-modal').addEventListener('click',e=>{ if(e.target===document.getElementById('share-modal'))closeShareModal(); });
 document.getElementById('script-modal').addEventListener('click',e=>{ if(e.target===document.getElementById('script-modal'))closePodcastScriptModal(); });
 
-async function loadSharePage(token) {
+// ── SHARE PAGE ────────────────────────────────────────────────────────────────
+async function loadSharePage(token){
   try {
     const res=await fetch(`/api/share/${token}`);
-    if (!res.ok) { showScreen('notebooks'); toast('Share link not found or revoked','error'); return; }
+    if (!res.ok){ showScreen('notebooks'); toast('Share link not found or revoked','error'); return; }
     const data=await res.json();
     state.shareToken=token; state.shareSources=data.sources||[]; state.shareChatHistory=[];
     document.getElementById('share-nb-name').textContent=data.name;
     document.title=`${data.name} — Knowledge Studio`;
     const srcList=document.getElementById('share-sources-list');
-    if (!data.sources||!data.sources.length) {
+    if (!data.sources||!data.sources.length){
       srcList.innerHTML='<div class="empty-sources"><div class="emoji">📂</div><div>No sources</div></div>';
     } else {
       srcList.innerHTML=data.sources.map(s=>`
@@ -1646,19 +1936,22 @@ async function loadSharePage(token) {
     document.getElementById('btn-share-nb').style.display='none';
     document.querySelector('.header-mid').innerHTML=`<span class="chip">🔒 Shared: ${escHtml(data.name)}</span>`;
     showScreen('share');
-  } catch(e) { console.error(e); showScreen('notebooks'); }
+  } catch(e){ console.error(e); showScreen('notebooks'); }
 }
 
-async function route() {
+// ── ROUTER ────────────────────────────────────────────────────────────────────
+async function route(){
   const shareMatch=location.pathname.match(/^\/share\/([^/?#]+)/);
-  if (shareMatch) { await loadSharePage(shareMatch[1]); return; }
+  if (shareMatch){ await loadSharePage(shareMatch[1]); return; }
   const nbMatch=location.hash.match(/^#notebook\/([^/?#]+)/);
-  if (nbMatch) { await loadNotebooks(); await openNotebook(nbMatch[1]); return; }
+  if (nbMatch){ await loadNotebooks(); await openNotebook(nbMatch[1]); return; }
   showScreen('notebooks'); await loadNotebooks();
 }
 
-document.getElementById('btn-ui-lang').textContent=currentLang.toUpperCase();
-document.getElementById('btn-gen-lang').textContent=genLang.toUpperCase();
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.getElementById('btn-lang').textContent = currentLang.toUpperCase();
+document.getElementById('btn-gen-lang').textContent = genLang.toUpperCase();
 route();
 </script>
 </body>
+</html>

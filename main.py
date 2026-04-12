@@ -171,29 +171,37 @@ def _gemini_json(prompt: str) -> dict | list:
 
 def analyze(content: str, name: str, lang: str = 'ru') -> dict:
     lang_instruction = (
-        "RESPOND ENTIRELY IN RUSSIAN LANGUAGE. НЕ ИСПОЛЬЗУЙ АНГЛИЙСКИЙ ЯЗЫК."
-        if lang == "ru" else "RESPOND ENTIRELY IN ENGLISH LANGUAGE."
+        "ПОЛНОСТЬЮ НА РУССКОМ ЯЗЫКЕ. Все поля JSON на русском. НЕ ИСПОЛЬЗУЙ АНГЛИЙСКИЙ ЯЗЫК."
+        if lang == "ru" else "ENTIRELY IN ENGLISH. All JSON fields in English."
     )
     lang_hint = "Russian" if lang == "ru" else "English"
 
     prompt = f"""{lang_instruction}
 
-You are a research analyst. Analyze the document titled "{name}".
-Provide detailed, substantive content.
-Minimum 5 key points. Minimum 3 topics with 3+ sub-points each.
+You are a world-class research analyst. Perform DEEP, SUBSTANTIVE analysis of the document titled "{name}".
+
+Be specific, not generic. Extract non-obvious insights. Avoid restating headings — find the real substance.
+
+Requirements:
+- summary: 5-6 detailed paragraphs covering ALL major points, arguments, and conclusions. Be thorough.
+- key_points: 15+ specific, non-obvious insights. Each should be a complete thought with context, not a topic label.
+- topics: 5-8 topics, each with 4-5 detailed sub-points that explain mechanisms, not just name them
+- notable_quotes: 8-10 most impactful, interesting, or surprising quotes verbatim from the text
+- entities: comprehensive extraction of all people, organizations, places, dates mentioned
+
 Return ONLY a valid JSON object (no markdown fences) with exactly these fields:
 
 {{
-  "summary": "Comprehensive 3-4 paragraph executive summary",
-  "key_points": ["concise key point 1", "key point 2", "..."],
+  "summary": "Comprehensive 5-6 paragraph executive summary covering all major themes",
+  "key_points": ["specific insight with context 1", "specific insight 2", "...at least 15"],
   "topics": [
     {{
       "title": "Topic Name",
-      "description": "2-3 sentence description",
-      "points": ["sub-point 1", "sub-point 2", "sub-point 3"]
+      "description": "2-3 sentence substantive description explaining what and why",
+      "points": ["detailed sub-point 1", "detailed sub-point 2", "detailed sub-point 3", "detailed sub-point 4"]
     }}
   ],
-  "notable_quotes": ["exact quote 1", "..."],
+  "notable_quotes": ["exact verbatim quote 1", "exact quote 2", "...8-10 quotes"],
   "entities": {{
     "people": ["name1", "..."],
     "organizations": ["org1", "..."],
@@ -206,8 +214,8 @@ Return ONLY a valid JSON object (no markdown fences) with exactly these fields:
   "language": "{lang_hint}"
 }}
 
-Document content (first 28000 chars):
-{content[:28000]}"""
+Document content (first 30000 chars):
+{content[:30000]}"""
 
     try:
         return _gemini_json(prompt)
@@ -1052,9 +1060,10 @@ def gen_podcast_full(source: dict, lang: str = 'ru') -> str:
 
     prompt = f"""{lang_line}
 
-Write a podcast transcript in the style of a NotebookLM Audio Overview, but more alive and with more humor.
+You are writing a podcast transcript for two hosts who have ACTUALLY READ and DEEPLY UNDERSTOOD "{name}".
+This is not a summary reading — it's two smart people thinking out loud together.
 
-Two hosts (unnamed — {host_a} and {host_b}) are genuinely exploring "{name}" together.
+Hosts: {host_a} and {host_b}
 
 Material to work from:
 - Core thesis: {core_thesis}
@@ -1066,34 +1075,42 @@ Material to work from:
 - Summary: {summary}
 - Key points: {key_points}
 
-Host style:
-- Genuinely react to ideas: "Wait, so basically they're saying...", "Hold on, that means..."
-- Disagree on interpretations occasionally — one pushes back, the other defends
-- Make jokes when something is absurd, counterintuitive, or surprisingly obvious
-- Use natural speech: interruptions, "yeah but...", "okay okay but...", "no no no listen"
-- Get genuinely excited about the interesting parts
-- Call out when something is obvious OR surprisingly non-obvious
-- Keep it USEFUL — listeners should learn something real, not just be entertained
-- Bring analogies and real-world examples naturally into the conversation
+CRITICAL STYLE RULES:
+- Hosts have GENUINE REACTIONS: surprise, skepticism, amusement, confusion
+- They DISAGREE sometimes and have to convince each other — not always resolved
+- They use SPECIFIC EXAMPLES and EXACT DETAILS from the material (not vague "as the author says")
+- Natural speech patterns: "Wait—", "Okay but—", "Hold on, that's—", "No no no, listen—"
+- Jokes emerge NATURALLY from content contradictions or surprisingly obvious/absurd facts
+- Each host has a DISTINCT VOICE that stays consistent throughout (one more skeptical, one more enthusiastic)
+- {"Russian informal register: 'слушай', 'погоди', 'это вообще-то', 'короче', 'ну и', 'да ладно'" if is_ru else "English informal: 'I mean', 'right?', 'okay so', 'hang on', 'actually wait'"}
+- 2000-2500 words MINIMUM. Do not cut corners.
+- NEVER use filler phrases like "great point!" or "absolutely!" — real people don't talk like that
+- When one host explains something, the other should react with their own interpretation, not just agree
 
-Structure (15–20 min / 2000–2500 words total):
+Structure (15–20 min read):
 
-COLD OPEN: one host drops a surprising or provocative statement about the material — no intro pleasantries
+COLD OPEN (no greeting, no "welcome to our podcast"):
+One host drops a provocative, surprising, or counterintuitive statement pulled directly from the material.
+The other host reacts genuinely — confused, skeptical, or intrigued. NO "hello listeners".
 
-BLOCK 1 — What is this actually about? (400–500 words)
-Two hosts figure out the core idea together, debating how to frame it, occasionally confusing each other in funny ways
+BLOCK 1 — What IS this actually? (400–500 words)
+They work out the core idea together. One might misframe it, the other corrects. Show the thinking, not the answer.
 
-BLOCK 2 — The interesting stuff (600–700 words)
-Deep dive into 2–3 key insights. Genuine back-and-forth. At least one "wait, that's actually insane" moment.
+BLOCK 2 — The meat (600–700 words)
+Deep dive into 2-3 specific insights. At least ONE moment where someone says something like:
+"Wait, so they're saying [X]... but that means [Y] which is kind of insane because..."
+Real tension, real back-and-forth. Use specific numbers, names, quotes from the material.
 
-BLOCK 3 — Okay but so what? (400–500 words)
-Practical implications. One host pushes hard for real-world use cases. The other plays devil's advocate.
+BLOCK 3 — Okay but who cares? (400–500 words)
+Practical implications. One host pushes hard: "but what do you actually DO with this?"
+The other plays devil's advocate. They should arrive at different conclusions.
 
-BLOCK 4 — The most surprising / controversial point (350–450 words)
-They genuinely disagree or are genuinely surprised. Let it breathe.
+BLOCK 4 — The thing that surprised them most (300–400 words)
+Each picks one thing they didn't expect. These should be DIFFERENT things. Brief disagreement on which matters more.
 
-CLOSING — Quick fire (200–250 words)
-Each says their single biggest takeaway. They don't fully agree. End on something memorable, not a summary.
+CLOSING (150–200 words):
+Each host gives their single biggest takeaway in ONE sentence. They don't agree. 
+End on something memorable — a question, a provocative thought, NOT a summary.
 
 Format STRICTLY as:
 {host_a}: [text]
