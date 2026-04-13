@@ -745,388 +745,208 @@ def _gen_infographic_matplotlib(source: dict, out: Path) -> None:
 
 import logging
 
-def gen_ai_background(source: dict, size: tuple = (1200, 1000)) -> PILImage | None:
-    """Generate AI visual background (abstract shapes, colors, no text). Returns PIL Image or None."""
-    from PIL import Image as _PIL
-    import io as _io
-    from google.genai import types as _gtypes
-
-    a = source.get("analysis") or {}
-    name = source.get("name", "")[:60]
-    topics = [t.get("title", "") for t in a.get("topics", [])[:3]]
-    topics_txt = ", ".join(topics) if topics else "abstract patterns"
-    sentiment = a.get("sentiment", "neutral")
-
-    mood_map = {
-        "positive": "bright, vibrant, uplifting colors, dynamic shapes",
-        "negative": "deep, dramatic, contrasting tones, serious mood",
-        "neutral": "balanced, professional, harmonious palette",
-        "mixed": "dynamic, layered, multidimensional composition",
-    }
-    mood = mood_map.get(sentiment, "professional, balanced composition")
-
-    bg_prompt = (
-        f"Abstract artistic background, modern sleek design, white/light base. "
-        f"NO TEXT, NO LETTERS, NO WORDS, NO NUMBERS. Only visual elements. "
-        f"Topic: {name}. Theme elements: {topics_txt}. "
-        f"Mood: {mood}. "
-        f"Style: editorial infographic background, geometric shapes, flowing lines, "
-        f"subtle gradients, modern corporate aesthetic, clean and sophisticated. "
-        f"High quality, professional background suitable for text overlay."
-    )
-
-    try:
-        resp = _client.models.generate_content(
-            model='gemini-3.1-flash-image-preview',
-            contents=bg_prompt,
-            config=_gtypes.GenerateContentConfig(response_modalities=['IMAGE','TEXT'])
-        )
-
-        for part in resp.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                bg_img = _PIL.open(_io.BytesIO(part.inline_data.data))
-                bg_img = bg_img.resize(size, _PIL.LANCZOS)
-                return bg_img
-    except Exception as e:
-        logging.warning(f"AI background generation failed: {e}")
-
-    return None
-
-
 def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
-    """Generate beautiful editorial-style infographic using PIL (like NotebookLM quality)."""
+    """Clean professional PIL infographic — pure design, no AI background."""
+    import logging
     from PIL import Image as PILImage, ImageDraw, ImageFont
-    import math
 
     a    = source.get("analysis") or {}
     deep = source.get("deep_analysis") or {}
     name = source.get("name", "Document")
+    pad  = 44
+    W    = 1200
 
-    W = 1200
-    pad = 44
+    ACCENTS = ['#6366F1','#10B981','#F59E0B','#0EA5E9','#EF4444','#8B5CF6','#EC4899']
 
-    ACCENT_SEQ = ['#6366F1','#0EA5E9','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899']
+    def h(hx):
+        c = hx.lstrip('#')
+        return tuple(int(c[i:i+2],16) for i in (0,2,4))
 
-    def hex_rgb(h):
-        h = h.lstrip('#')
-        return tuple(int(h[i:i+2], 16) for i in (0,2,4))
-
-    def load_font(bold=False, size=18):
-        paths = [
+    def lf(bold=False, size=18):
+        for p in [
             f'/usr/share/fonts/truetype/dejavu/DejaVuSans{"-Bold" if bold else ""}.ttf',
             f'/usr/share/fonts/truetype/noto/NotoSans{"-Bold" if bold else ""}.ttf',
-        ]
-        for p in paths:
+        ]:
             if os.path.exists(p):
                 try: return ImageFont.truetype(p, size)
                 except: pass
         return ImageFont.load_default()
 
-    fnt = {
-        'h1': load_font(True, 38), 'h2': load_font(True, 24), 'h3': load_font(True, 19),
-        'body': load_font(False, 17), 'small': load_font(False, 14),
-        'quote': load_font(False, 19), 'num': load_font(True, 15),
+    F = {
+        'h1':lf(True,40),'h2':lf(True,26),'h3':lf(True,20),
+        'body':lf(False,17),'sm':lf(False,14),'num':lf(True,16),
     }
 
-    def text_wrap(text, font, max_w, draw):
-        words = str(text).split()
-        lines, cur = [], []
+    def wrap(txt, font, maxw, draw):
+        words = str(txt).split(); lines, cur = [], []
         for w in words:
-            test = ' '.join(cur + [w])
-            if draw.textbbox((0,0), test, font=font)[2] <= max_w:
-                cur.append(w)
+            test = ' '.join(cur+[w])
+            if draw.textbbox((0,0),test,font=font)[2] <= maxw: cur.append(w)
             else:
                 if cur: lines.append(' '.join(cur))
                 cur = [w]
         if cur: lines.append(' '.join(cur))
         return lines or ['']
 
-    def rr(draw, x1,y1,x2,y2, r=10, fill=None, outline=None, lw=1):
-        """rounded rect"""
-        if fill:
-            draw.rectangle([x1+r,y1,x2-r,y2], fill=fill)
-            draw.rectangle([x1,y1+r,x2,y2-r], fill=fill)
-            for cx,cy in [(x1,y1),(x2-2*r,y1),(x1,y2-2*r),(x2-2*r,y2-2*r)]:
-                draw.ellipse([cx,cy,cx+2*r,cy+2*r], fill=fill)
-        if outline:
-            draw.rectangle([x1+r,y1,x2-r,y1], fill=outline) if lw==1 else draw.line([x1+r,y1,x2-r,y1],fill=outline,width=lw)
-            draw.line([x1+r,y2,x2-r,y2],fill=outline,width=lw)
-            draw.line([x1,y1+r,x1,y2-r],fill=outline,width=lw)
-            draw.line([x2,y1+r,x2,y2-r],fill=outline,width=lw)
-
-    # ── Dry run to calc height ──────────────────────────────────────────────────
-    dummy = PILImage.new('RGB',(W,10)); dd = ImageDraw.Draw(dummy)
+    def rr(draw, x1,y1,x2,y2,r=10,fill=None):
+        if not fill: return
+        draw.rectangle([x1+r,y1,x2-r,y2],fill=fill)
+        draw.rectangle([x1,y1+r,x2,y2-r],fill=fill)
+        for cx,cy in [(x1,y1),(x2-2*r,y1),(x1,y2-2*r),(x2-2*r,y2-2*r)]:
+            draw.ellipse([cx,cy,cx+2*r,cy+2*r],fill=fill)
 
     summary   = str(a.get('summary',''))[:500]
-    kps       = a.get('key_points',[])[:6]
-    topics    = a.get('topics',[])[:5]
+    kps       = a.get('key_points',[])[:7]
+    topics    = a.get('topics',[])[:6]
     quotes    = a.get('notable_quotes',[])
-    core      = str(deep.get('core_thesis',''))[:300]
-    entities  = a.get('entities',{})
+    core      = str(deep.get('core_thesis',''))[:280]
+    wcount    = a.get('word_count', len(summary.split()))
+    sentiment = a.get('sentiment','neutral')
+    complexity= a.get('complexity','intermediate')
 
-    def sec_h(kind):
-        if kind=='header': return 115
-        elif kind=='summary':
-            return 20 + len(text_wrap(summary[:450], fnt['body'], W-2*pad-20, dd))*26 + 50
-        elif kind=='keypoints':
-            h=52
-            for kp in kps: h += max(len(text_wrap(kp[:180], fnt['body'], W-2*pad-80, dd)),1)*24+18
-            return h+20
-        elif kind=='topics':
-            h=52
+    dummy = PILImage.new('RGB',(W,10)); dd = ImageDraw.Draw(dummy)
+
+    def sec_h(k):
+        if k=='header': return 185
+        if k=='summary': return len(wrap(summary[:450],F['body'],W-2*pad-40,dd))*26+90
+        if k=='kps':
+            h_=70
+            for kp in kps: h_+=max(len(wrap(kp[:180],F['body'],W-2*pad-80,dd)),1)*23+22
+            return h_+20
+        if k=='topics':
+            h_=70; cw=(W-2*pad-16)//2
             for t in topics:
-                h += len(text_wrap(t.get('title','')[:60], fnt['h3'], W-2*pad-30, dd))*27
-                h += len(text_wrap(t.get('description','')[:180], fnt['small'], W-2*pad-30, dd))*21+14
-            return h+20
-        elif kind=='quote' and quotes:
-            return len(text_wrap(f'"{quotes[0][:280]}"', fnt['quote'], W-2*pad-60, dd))*30+60
-        elif kind=='insight' and core:
-            return len(text_wrap(core, fnt['body'], W-2*pad-40, dd))*28+80
-        elif kind=='entities' and any(entities.values()):
-            return 120
+                h_+=max(len(wrap(t.get('title','')[:60],F['h3'],cw-30,dd)),1)*27
+                h_+=max(len(wrap(t.get('description','')[:120],F['sm'],cw-30,dd)),1)*20+20
+            return h_+20
+        if k=='quote' and quotes:
+            return len(wrap(f'"{quotes[0][:280]}"',F['body'],W-2*pad-60,dd))*28+80
+        if k=='stats': return 110
+        if k=='insight' and core:
+            return len(wrap(core,F['body'],W-2*pad-40,dd))*26+90
         return 0
 
-    sections = ['header','summary','keypoints','topics']
-    if quotes: sections.append('quote')
-    if core:   sections.append('insight')
-    if any(entities.values()): sections.append('entities')
+    secs = ['header','summary','kps']
+    if topics: secs.append('topics')
+    if quotes: secs.append('quote')
+    secs.append('stats')
+    if core: secs.append('insight')
 
-    H = sum(sec_h(s) for s in sections) + 80
-    H = max(H, 900)
-
-    # ── Try to get AI background first ────────────────────────────────────────
-    bg_img = gen_ai_background(source, size=(W, H))
-    use_bg = bg_img is not None
-
-    # ── Draw ────────────────────────────────────────────────────────────────────
-    if use_bg and bg_img:
-        img = bg_img.convert('RGBA')
-    else:
-        img = PILImage.new('RGBA', (W, H), (255, 255, 255, 255))
-
+    H = sum(sec_h(s) for s in secs)+60; H = max(H,1000)
+    img = PILImage.new('RGB',(W,H),(255,255,255))
     draw = ImageDraw.Draw(img)
-
-    # Layout config based on background availability
-    if use_bg:
-        text_col_w = min(620, W - 50)
-        header_fill = (15, 23, 42, 220)
-        section_fill = (15, 23, 42, 200)
-        text_primary = (248, 250, 252)
-        text_secondary = (196, 203, 212)
-    else:
-        text_col_w = W - 2 * pad
-        header_fill = hex_rgb('#0F172A')
-        section_fill = None
-        text_primary = hex_rgb('#1E293B')
-        text_secondary = hex_rgb('#374151')
-
     y = 0
-    for sec in sections:
-        if sec == 'header':
-            if use_bg:
-                draw.rectangle([0, 0, text_col_w, 115], fill=header_fill)
-                tl = text_wrap(name[:80], fnt['h1'], text_col_w - pad - 20, draw)
-                draw.text((pad, 30), tl[0], font=fnt['h1'], fill=text_primary)
-                if y + 100 < H:
-                    draw.rectangle([0, 106, text_col_w, 110], fill=(99, 102, 241, 200))
-            else:
-                draw.rectangle([0,0,W,110], fill=hex_rgb('#0F172A'))
-                draw.rectangle([0,106,W,110], fill=hex_rgb('#6366F1'))
-                tl = text_wrap(name[:80], fnt['h1'], W-2*pad, draw)
-                draw.text((pad, 30), tl[0], font=fnt['h1'], fill=(255,255,255))
-            y = 128
 
-        elif sec == 'summary':
-            y += 12
+    for sec in secs:
+        if sec=='header':
+            draw.rectangle([0,0,W,180],fill=h('#0F172A'))
+            draw.rectangle([0,176,W,180],fill=h('#6366F1'))
+            tl = wrap(name[:80],F['h1'],W-2*pad,draw)
+            draw.text((pad,32),tl[0],font=F['h1'],fill=(255,255,255))
+            if len(tl)>1: draw.text((pad,82),tl[1],font=F['h1'],fill=(255,255,255))
+            sub = ('Анализ документа' if lang=='ru' else 'Document Analysis')+' · Knowledge Studio'
+            draw.text((pad,148),sub,font=F['sm'],fill=h('#94A3B8'))
+            y = 200
+
+        elif sec=='summary':
+            sh = sec_h('summary')
+            rr(draw,pad,y,W-pad,y+sh-10,14,fill=h('#F8FAFC'))
+            draw.rectangle([pad,y,pad+6,y+sh-10],fill=h('#6366F1'))
             lbl = 'Краткое содержание' if lang=='ru' else 'Summary'
-            section_color = (99, 102, 241) if use_bg else hex_rgb('#6366F1')
-            text_color = text_primary if use_bg else section_color
-            draw.text((pad, y), lbl, font=fnt['h3'], fill=text_color)
-            y += 28
-            draw.rectangle([pad,y,pad+55,y+2], fill=section_color)
-            y += 14
-            text_w = text_col_w - pad - 20 if use_bg else W-2*pad-20
-            for line in text_wrap(summary[:450], fnt['body'], text_w, draw)[:14]:
-                draw.text((pad+10,y), line, font=fnt['body'], fill=text_secondary if use_bg else hex_rgb('#374151'))
-                y += 26
-            y += 16
-            draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
-            y += 14
+            draw.text((pad+20,y+14),lbl,font=F['h3'],fill=h('#6366F1'))
+            ty=y+46
+            for line in wrap(summary[:450],F['body'],W-2*pad-40,draw)[:13]:
+                draw.text((pad+20,ty),line,font=F['body'],fill=h('#1E293B')); ty+=26
+            y+=sh+10
 
-        elif sec == 'keypoints':
-            y += 10
+        elif sec=='kps':
             lbl = 'Ключевые инсайты' if lang=='ru' else 'Key Insights'
-            kp_color = (14, 165, 233) if use_bg else hex_rgb('#0EA5E9')
-            draw.text((pad, y), lbl, font=fnt['h3'], fill=text_primary if use_bg else kp_color)
-            y += 28
-            draw.rectangle([pad,y,pad+55,y+2], fill=kp_color)
-            y += 14
-            kp_text_w = text_col_w - pad - 80 if use_bg else W-2*pad-80
-            for i, kp in enumerate(kps):
-                acc = hex_rgb(ACCENT_SEQ[i % len(ACCENT_SEQ)])
-                cx, cy, r2 = pad+16, y+13, 13
-                draw.ellipse([cx-r2,cy-r2,cx+r2,cy+r2], fill=acc)
-                ntxt = str(i+1)
-                nb = draw.textbbox((0,0),ntxt,font=fnt['num'])
-                draw.text((cx-(nb[2]-nb[0])//2-1, cy-8), ntxt, font=fnt['num'], fill=(255,255,255))
-                lines = text_wrap(kp[:180], fnt['body'], kp_text_w, draw)
+            draw.text((pad,y),lbl,font=F['h2'],fill=h('#0F172A')); y+=36
+            draw.rectangle([pad,y,pad+50,y+2],fill=h('#6366F1')); y+=14
+            for i,kp in enumerate(kps):
+                acc=h(ACCENTS[i%len(ACCENTS)])
+                bg=h('#FAFAFA') if i%2==0 else h('#F1F5F9')
+                lines=wrap(kp[:180],F['body'],W-2*pad-80,draw)
+                ch=max(len(lines),1)*23+22
+                rr(draw,pad,y,W-pad,y+ch,8,fill=bg)
+                draw.rectangle([pad,y,pad+5,y+ch],fill=acc)
+                cx2,cy2,r2=pad+26,y+ch//2,12
+                draw.ellipse([cx2-r2,cy2-r2,cx2+r2,cy2+r2],fill=acc)
+                nt=str(i+1); nb=draw.textbbox((0,0),nt,font=F['num'])
+                draw.text((cx2-(nb[2]-nb[0])//2,cy2-8),nt,font=F['num'],fill=(255,255,255))
                 for li,line in enumerate(lines[:3]):
-                    draw.text((pad+40, y+li*24), line, font=fnt['body'], fill=text_primary if use_bg else hex_rgb('#1E293B'))
-                y += max(len(lines),1)*24+16
-            y += 10
-            draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
-            y += 14
+                    draw.text((pad+48,y+7+li*23),line,font=F['body'],fill=h('#1E293B'))
+                y+=ch+8
+            y+=16
 
-        elif sec == 'topics':
-            y += 10
+        elif sec=='topics':
             lbl = 'Основные темы' if lang=='ru' else 'Main Topics'
-            topic_color = (16, 185, 129) if use_bg else hex_rgb('#10B981')
-            draw.text((pad,y), lbl, font=fnt['h3'], fill=text_primary if use_bg else topic_color)
-            y += 28
-            draw.rectangle([pad,y,pad+55,y+2], fill=topic_color)
-            y += 14
-            topic_w = text_col_w - pad - 30 if use_bg else W-2*pad-30
-            for i, topic in enumerate(topics):
-                acc = hex_rgb(ACCENT_SEQ[(i+2)%len(ACCENT_SEQ)])
-                draw.rectangle([pad,y,pad+4,y+42], fill=acc)
-                ttl = topic.get('title','')[:70]
-                tlines = text_wrap(ttl, fnt['h3'], topic_w, draw)
-                title_fill = text_primary if use_bg else hex_rgb('#0F172A')
-                draw.text((pad+16,y+4), tlines[0], font=fnt['h3'], fill=title_fill)
-                desc = topic.get('description','')[:160]
-                dlines = text_wrap(desc, fnt['small'], topic_w, draw)
-                desc_fill = text_secondary if use_bg else hex_rgb('#6B7280')
-                for dl,dline in enumerate(dlines[:2]):
-                    draw.text((pad+16, y+28+dl*19), dline, font=fnt['small'], fill=desc_fill)
-                y += 28+min(len(dlines),2)*19+16
-            y += 8
-            draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
-            y += 14
+            draw.text((pad,y),lbl,font=F['h2'],fill=h('#0F172A')); y+=36
+            draw.rectangle([pad,y,pad+50,y+2],fill=h('#10B981')); y+=14
+            cw=(W-2*pad-16)//2; col=0; row_y=y
+            for i,t in enumerate(topics):
+                acc=h(ACCENTS[(i+2)%len(ACCENTS)])
+                tx=pad+(col*(cw+16))
+                tlines=wrap(t.get('title','')[:60],F['h3'],cw-30,draw)
+                dlines=wrap(t.get('description','')[:120],F['sm'],cw-30,draw)
+                th=len(tlines)*27+len(dlines[:2])*20+24
+                rr(draw,tx,row_y,tx+cw,row_y+th,10,fill=h('#F8FAFC'))
+                draw.rectangle([tx,row_y,tx+5,row_y+th],fill=acc)
+                ty2=row_y+8
+                for tl2 in tlines[:2]:
+                    draw.text((tx+14,ty2),tl2,font=F['h3'],fill=h('#0F172A')); ty2+=27
+                for dl in dlines[:2]:
+                    draw.text((tx+14,ty2),dl,font=F['sm'],fill=h('#6B7280')); ty2+=20
+                col+=1
+                if col>=2:
+                    col=0; row_y=ty2+10; y=row_y
+            if col>0: y=row_y+max(60,0)+10
+            y+=14
 
-        elif sec == 'quote':
-            y += 12
-            q = quotes[0][:280]
-            qtxt = f'"{q}"'
-            quote_w = text_col_w - pad - 60 if use_bg else W-2*pad-60
-            qlines = text_wrap(qtxt, fnt['quote'], quote_w, draw)
-            ch = len(qlines)*30+50
-            quote_bg = (238, 242, 255) if not use_bg else (30, 30, 50)
-            rr(draw, pad,y, min(W-pad, text_col_w),y+ch, 10, fill=quote_bg)
-            draw.rectangle([pad,y,pad+5,y+ch], fill=(99, 102, 241))
-            draw.text((pad+18,y+10), '❝', font=fnt['h2'], fill=(99, 102, 241))
+        elif sec=='quote':
+            q=quotes[0][:280]
+            qlines=wrap(f'"{q}"',F['body'],W-2*pad-60,draw)
+            ch=len(qlines)*28+70
+            rr(draw,pad,y,W-pad,y+ch,12,fill=h('#3730A3'))
+            draw.text((pad+18,y+10),'❝',font=F['h2'],fill=h('#A5B4FC'))
             for li,line in enumerate(qlines):
-                qtxt_fill = hex_rgb('#1E3A8A') if not use_bg else (200, 210, 240)
-                draw.text((pad+22,y+46+li*30), line, font=fnt['quote'], fill=qtxt_fill)
-            y += ch+20
+                draw.text((pad+22,y+50+li*28),line,font=F['body'],fill=(220,225,255))
+            y+=ch+16
 
-        elif sec == 'insight':
-            y += 10
-            insight_w = text_col_w - pad - 40 if use_bg else W-2*pad-40
-            ilines = text_wrap(core, fnt['body'], insight_w, draw)
-            ch = len(ilines)*28+72
-            insight_fill = hex_rgb('#0F172A') if not use_bg else (15, 23, 42, 230)
-            rr(draw,pad,y,min(W-pad, text_col_w),y+ch,10,fill=insight_fill)
-            ilbl = '💡 Главный вывод' if lang=='ru' else '💡 Core Insight'
-            draw.text((pad+20,y+14), ilbl, font=fnt['h3'], fill=(99, 102, 241))
-            for li,line in enumerate(ilines):
-                draw.text((pad+20,y+48+li*28), line, font=fnt['body'], fill=(200,210,230))
-            y += ch+20
-
-        elif sec == 'entities':
-            y += 10
-            cats = [
-                ('Люди' if lang=='ru' else 'People', entities.get('people',[]),'#818CF8'),
-                ('Организации' if lang=='ru' else 'Orgs', entities.get('organizations',[]),'#34D399'),
-                ('Места' if lang=='ru' else 'Places', entities.get('places',[]),'#FB923C'),
+        elif sec=='stats':
+            sent_icon={'positive':'↑','negative':'↓','neutral':'→','mixed':'⟷'}.get(sentiment,'→')
+            sent_lbl=('Позитивный' if sentiment=='positive' else 'Негативный' if sentiment=='negative' else 'Нейтральный') if lang=='ru' else sentiment.title()
+            stats=[
+                (str(wcount),'слов' if lang=='ru' else 'words','#6366F1'),
+                (str(len(kps)),'инсайтов' if lang=='ru' else 'insights','#10B981'),
+                (sent_icon+' '+sent_lbl,'тональность' if lang=='ru' else 'sentiment','#F59E0B'),
+                (complexity.title(),'уровень' if lang=='ru' else 'level','#0EA5E9'),
             ]
-            cw = (W-2*pad-20)//3
-            for ci,(clbl,items,cc) in enumerate(cats):
-                cx = pad+ci*(cw+10)
-                rr(draw,cx,y,cx+cw,y+32,6,fill=hex_rgb(cc))
-                draw.text((cx+10,y+6), clbl[:20], font=fnt['small'], fill=(255,255,255))
-                iy = y+38
-                for item in items[:4]:
-                    draw.text((cx+6,iy), '• '+str(item)[:28], font=fnt['small'], fill=hex_rgb('#374151'))
-                    iy+=20
-            y += 130
+            sw=(W-2*pad-16*3)//4
+            for si,(val,lbl2,col2) in enumerate(stats):
+                sx=pad+si*(sw+16)
+                rr(draw,sx,y,sx+sw,y+90,10,fill=h(col2))
+                vb=draw.textbbox((0,0),val[:12],font=F['h2']); vw=vb[2]-vb[0]
+                draw.text((sx+(sw-vw)//2,y+12),val[:12],font=F['h2'],fill=(255,255,255))
+                lb=draw.textbbox((0,0),lbl2[:16],font=F['sm']); lw=lb[2]-lb[0]
+                draw.text((sx+(sw-lw)//2,y+56),lbl2[:16],font=F['sm'],fill=(220,230,255))
+            y+=106
 
-    # ── Try to add AI illustration ────────────────────────────────────────────
-    try:
-        import io as _io
-        from google.genai import types as _gtypes
-        
-        # Build illustration prompt from source content
-        kps_txt = '; '.join([str(k)[:60] for k in kps[:3]])
-        topics_txt = ', '.join([t.get('title','') for t in topics[:3]])
-        sentiment_map = {
-            'positive': 'optimistic, bright, uplifting',
-            'negative': 'serious, dramatic, warning',
-            'neutral':  'balanced, professional, informative',
-            'mixed':    'dynamic, contrasting, complex',
-        }
-        mood = sentiment_map.get(a.get('sentiment','neutral'), 'professional')
-        
-        illus_prompt = (
-            f"Flat vector editorial illustration, white background, absolutely no text or letters. "
-            f"Topic: {name[:60]}. Themes: {topics_txt}. "
-            f"Mood: {mood}. "
-            f"Style: modern infographic illustration, vibrant colors, geometric shapes, "
-            f"abstract but meaningful visual metaphors. High quality, clean design."
-        )
-        
-        illus_resp = _client.models.generate_content(
-            model='gemini-3.1-flash-image-preview',
-            contents=illus_prompt,
-            config=_gtypes.GenerateContentConfig(response_modalities=['IMAGE','TEXT'])
-        )
-        
-        for part in illus_resp.candidates[0].content.parts:
-            if hasattr(part,'inline_data') and part.inline_data:
-                from PIL import Image as _PIL
-                illus_img = _PIL.open(_io.BytesIO(part.inline_data.data))
-                # Resize to fit right side (400x300)
-                illus_w, illus_h = 420, 320
-                illus_img = illus_img.resize((illus_w, illus_h), _PIL.LANCZOS)
-                
-                # Extend canvas height for illustration
-                new_H = H + illus_h + 50
-                new_img = _PIL.new('RGB', (W, new_H), hex_rgb('#FFFFFF'))
-                new_img.paste(img, (0, 0))
-                
-                # Add illustration section header
-                new_draw = ImageDraw.Draw(new_img)
-                new_draw.rectangle([0, H-28, W, H], fill=hex_rgb('#F1F5F9'))
-                new_draw.text((pad, H-20), 'Knowledge Studio', font=fnt['small'], fill=hex_rgb('#9CA3AF'))
-                
-                # Illustration area
-                iy = H + 10
-                new_draw.rectangle([0, iy-5, W, iy+illus_h+30], fill=hex_rgb('#F8FAFC'))
-                ill_label = '🎨 Визуализация темы' if lang=='ru' else '🎨 Visual'
-                new_draw.text((pad, iy+2), ill_label, font=fnt['small'], fill=hex_rgb('#6B7280'))
-                # Center the illustration
-                ix = (W - illus_w) // 2
-                new_img.paste(illus_img, (ix, iy+22))
-                
-                # Save extended image
-                new_img.save(str(out), 'PNG', dpi=(150,150))
-                logging.info(f"Infographic+illustration generated: {out}")
-                return
-    except Exception as _e:
-        logging.warning(f"AI illustration failed ({_e}), saving without illustration")
+        elif sec=='insight':
+            ilines=wrap(core,F['body'],W-2*pad-40,draw)
+            ch=len(ilines)*26+90
+            rr(draw,pad,y,W-pad,y+ch,12,fill=h('#0F172A'))
+            draw.rectangle([pad,y,pad+6,y+ch],fill=h('#F59E0B'))
+            lbl = '💡 Главный вывод' if lang=='ru' else '💡 Core Insight'
+            draw.text((pad+20,y+14),lbl,font=F['h3'],fill=h('#F59E0B'))
+            for li,line in enumerate(ilines):
+                draw.text((pad+20,y+52+li*26),line,font=F['body'],fill=(200,210,230))
+            y+=ch+16
 
-    # Footer + save without illustration
-    draw.rectangle([0,H-28,W,H], fill=hex_rgb('#F1F5F9'))
-    draw.text((pad,H-20), 'Knowledge Studio', font=fnt['small'], fill=hex_rgb('#9CA3AF'))
-
-    # Convert RGBA to RGB for saving as PNG
-    if img.mode == 'RGBA':
-        final_img = PILImage.new('RGB', img.size, (255, 255, 255))
-        final_img.paste(img, (0, 0), img)
-    else:
-        final_img = img
-
-    final_img.save(str(out), 'PNG', dpi=(150,150))
-    logging.info(f"Infographic generated: {out} ({out.stat().st_size//1024}KB)")
+    draw.rectangle([0,H-32,W,H],fill=h('#F1F5F9'))
+    draw.text((pad,H-22),'Knowledge Studio',font=F['sm'],fill=h('#9CA3AF'))
+    img.save(str(out),'PNG',dpi=(150,150))
+    logging.info(f"Infographic saved: {out.stat().st_size//1024}KB")
 
 
 def gen_mindmap(source: dict, out: Path) -> None:
