@@ -841,7 +841,8 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
         if sec=='header':
             draw.rectangle([0,0,W,180],fill=h('#0F172A'))
             draw.rectangle([0,176,W,180],fill=h('#6366F1'))
-            tl = wrap(name[:80],F['h1'],W-2*pad,draw)
+            clean_name = name.replace('_',' ').replace('.pdf','').replace('.docx','').replace('.txt','').replace('.md','')
+            tl = wrap(clean_name[:80],F['h1'],W-2*pad,draw)
             draw.text((pad,32),tl[0],font=F['h1'],fill=(255,255,255))
             if len(tl)>1: draw.text((pad,82),tl[1],font=F['h1'],fill=(255,255,255))
             sub = ('Анализ документа' if lang=='ru' else 'Document Analysis')+' · Knowledge Studio'
@@ -866,7 +867,7 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
             for i,kp in enumerate(kps):
                 acc=h(ACCENTS[i%len(ACCENTS)])
                 bg=h('#FAFAFA') if i%2==0 else h('#F1F5F9')
-                lines=wrap(kp[:180],F['body'],W-2*pad-80,draw)
+                lines=wrap(kp[:200],F['body'],W-2*pad-88,draw)
                 ch=max(len(lines),1)*23+22
                 rr(draw,pad,y,W-pad,y+ch,8,fill=bg)
                 draw.rectangle([pad,y,pad+5,y+ch],fill=acc)
@@ -883,25 +884,28 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
             lbl = 'Основные темы' if lang=='ru' else 'Main Topics'
             draw.text((pad,y),lbl,font=F['h2'],fill=h('#0F172A')); y+=36
             draw.rectangle([pad,y,pad+50,y+2],fill=h('#10B981')); y+=14
-            cw=(W-2*pad-16)//2; col=0; row_y=y
+            # Single-column for better readability — no text overflow
             for i,t in enumerate(topics):
                 acc=h(ACCENTS[(i+2)%len(ACCENTS)])
-                tx=pad+(col*(cw+16))
-                tlines=wrap(t.get('title','')[:60],F['h3'],cw-30,draw)
-                dlines=wrap(t.get('description','')[:120],F['sm'],cw-30,draw)
-                th=len(tlines)*27+len(dlines[:2])*20+24
-                rr(draw,tx,row_y,tx+cw,row_y+th,10,fill=h('#F8FAFC'))
-                draw.rectangle([tx,row_y,tx+5,row_y+th],fill=acc)
-                ty2=row_y+8
+                ttl = t.get('title','')[:70]
+                desc = t.get('description','')[:160]
+                tlines=wrap(ttl,F['h3'],W-2*pad-60,draw)
+                dlines=wrap(desc,F['sm'],W-2*pad-60,draw)
+                th=len(tlines)*27+len(dlines[:3])*20+28
+                th=max(th,56)
+                rr(draw,pad,y,W-pad,y+th,8,fill=h('#F8FAFC'))
+                draw.rectangle([pad,y,pad+5,y+th],fill=acc)
+                # Emoji number
+                draw.ellipse([pad+10,y+th//2-12,pad+34,y+th//2+12],fill=acc)
+                nt=str(i+1); nb=draw.textbbox((0,0),nt,font=F['num'])
+                draw.text((pad+22-(nb[2]-nb[0])//2,y+th//2-8),nt,font=F['num'],fill=(255,255,255))
+                ty2=y+8
                 for tl2 in tlines[:2]:
-                    draw.text((tx+14,ty2),tl2,font=F['h3'],fill=h('#0F172A')); ty2+=27
-                for dl in dlines[:2]:
-                    draw.text((tx+14,ty2),dl,font=F['sm'],fill=h('#6B7280')); ty2+=20
-                col+=1
-                if col>=2:
-                    col=0; row_y=ty2+10; y=row_y
-            if col>0: y=row_y+max(60,0)+10
-            y+=14
+                    draw.text((pad+46,ty2),tl2,font=F['h3'],fill=h('#0F172A')); ty2+=27
+                for dl in dlines[:3]:
+                    draw.text((pad+46,ty2),dl,font=F['sm'],fill=h('#6B7280')); ty2+=20
+                y+=th+10
+            y+=10
 
         elif sec=='quote':
             q=quotes[0][:280]
