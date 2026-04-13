@@ -744,23 +744,226 @@ def _gen_infographic_matplotlib(source: dict, out: Path) -> None:
 
 
 def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
-    """Generate infographic using Google Imagen 4, with matplotlib fallback."""
-    try:
-        from google.genai import types as genai_types
-        api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyBPTe1Qo1tCrhLtJAgmozUoypYh3is6c84")
-        imagen_client = genai.Client(api_key=api_key)
-        prompt = build_infographic_prompt(source, lang)
-        result = imagen_client.models.generate_images(
-            model='imagen-4.0-fast-generate-001',
-            prompt=prompt,
-            config=genai_types.GenerateImagesConfig(number_of_images=1, output_mime_type='image/png')
-        )
-        img_bytes = result.generated_images[0].image.image_bytes
-        out.write_bytes(img_bytes)
-    except Exception as e:
-        import logging
-        logging.warning(f"Imagen 4 infographic generation failed ({e}), falling back to matplotlib")
-        _gen_infographic_matplotlib(source, out)
+    """Generate beautiful editorial-style infographic using PIL (like NotebookLM quality)."""
+    from PIL import Image as PILImage, ImageDraw, ImageFont
+    import math
+
+    a    = source.get("analysis") or {}
+    deep = source.get("deep_analysis") or {}
+    name = source.get("name", "Document")
+
+    W = 1200
+    pad = 44
+
+    ACCENT_SEQ = ['#6366F1','#0EA5E9','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899']
+
+    def hex_rgb(h):
+        h = h.lstrip('#')
+        return tuple(int(h[i:i+2], 16) for i in (0,2,4))
+
+    def load_font(bold=False, size=18):
+        paths = [
+            f'/usr/share/fonts/truetype/dejavu/DejaVuSans{"-Bold" if bold else ""}.ttf',
+            f'/usr/share/fonts/truetype/noto/NotoSans{"-Bold" if bold else ""}.ttf',
+        ]
+        for p in paths:
+            if os.path.exists(p):
+                try: return ImageFont.truetype(p, size)
+                except: pass
+        return ImageFont.load_default()
+
+    fnt = {
+        'h1': load_font(True, 38), 'h2': load_font(True, 24), 'h3': load_font(True, 19),
+        'body': load_font(False, 17), 'small': load_font(False, 14),
+        'quote': load_font(False, 19), 'num': load_font(True, 15),
+    }
+
+    def text_wrap(text, font, max_w, draw):
+        words = str(text).split()
+        lines, cur = [], []
+        for w in words:
+            test = ' '.join(cur + [w])
+            if draw.textbbox((0,0), test, font=font)[2] <= max_w:
+                cur.append(w)
+            else:
+                if cur: lines.append(' '.join(cur))
+                cur = [w]
+        if cur: lines.append(' '.join(cur))
+        return lines or ['']
+
+    def rr(draw, x1,y1,x2,y2, r=10, fill=None, outline=None, lw=1):
+        """rounded rect"""
+        if fill:
+            draw.rectangle([x1+r,y1,x2-r,y2], fill=fill)
+            draw.rectangle([x1,y1+r,x2,y2-r], fill=fill)
+            for cx,cy in [(x1,y1),(x2-2*r,y1),(x1,y2-2*r),(x2-2*r,y2-2*r)]:
+                draw.ellipse([cx,cy,cx+2*r,cy+2*r], fill=fill)
+        if outline:
+            draw.rectangle([x1+r,y1,x2-r,y1], fill=outline) if lw==1 else draw.line([x1+r,y1,x2-r,y1],fill=outline,width=lw)
+            draw.line([x1+r,y2,x2-r,y2],fill=outline,width=lw)
+            draw.line([x1,y1+r,x1,y2-r],fill=outline,width=lw)
+            draw.line([x2,y1+r,x2,y2-r],fill=outline,width=lw)
+
+    # ── Dry run to calc height ──────────────────────────────────────────────────
+    dummy = PILImage.new('RGB',(W,10)); dd = ImageDraw.Draw(dummy)
+
+    summary   = str(a.get('summary',''))[:500]
+    kps       = a.get('key_points',[])[:6]
+    topics    = a.get('topics',[])[:5]
+    quotes    = a.get('notable_quotes',[])
+    core      = str(deep.get('core_thesis',''))[:300]
+    entities  = a.get('entities',{})
+
+    def sec_h(kind):
+        if kind=='header': return 115
+        elif kind=='summary':
+            return 20 + len(text_wrap(summary[:450], fnt['body'], W-2*pad-20, dd))*26 + 50
+        elif kind=='keypoints':
+            h=52
+            for kp in kps: h += max(len(text_wrap(kp[:180], fnt['body'], W-2*pad-80, dd)),1)*24+18
+            return h+20
+        elif kind=='topics':
+            h=52
+            for t in topics:
+                h += len(text_wrap(t.get('title','')[:60], fnt['h3'], W-2*pad-30, dd))*27
+                h += len(text_wrap(t.get('description','')[:180], fnt['small'], W-2*pad-30, dd))*21+14
+            return h+20
+        elif kind=='quote' and quotes:
+            return len(text_wrap(f'"{quotes[0][:280]}"', fnt['quote'], W-2*pad-60, dd))*30+60
+        elif kind=='insight' and core:
+            return len(text_wrap(core, fnt['body'], W-2*pad-40, dd))*28+80
+        elif kind=='entities' and any(entities.values()):
+            return 120
+        return 0
+
+    sections = ['header','summary','keypoints','topics']
+    if quotes: sections.append('quote')
+    if core:   sections.append('insight')
+    if any(entities.values()): sections.append('entities')
+
+    H = sum(sec_h(s) for s in sections) + 80
+    H = max(H, 900)
+
+    # ── Draw ────────────────────────────────────────────────────────────────────
+    img = PILImage.new('RGB',(W,H), hex_rgb('#FFFFFF'))
+    draw = ImageDraw.Draw(img)
+
+    y = 0
+    for sec in sections:
+        if sec == 'header':
+            draw.rectangle([0,0,W,110], fill=hex_rgb('#0F172A'))
+            draw.rectangle([0,106,W,110], fill=hex_rgb('#6366F1'))
+            tl = text_wrap(name[:80], fnt['h1'], W-2*pad, draw)
+            draw.text((pad, 30), tl[0], font=fnt['h1'], fill=(255,255,255))
+            y = 128
+
+        elif sec == 'summary':
+            y += 12
+            lbl = 'Краткое содержание' if lang=='ru' else 'Summary'
+            draw.text((pad, y), lbl, font=fnt['h3'], fill=hex_rgb('#6366F1'))
+            y += 28
+            draw.rectangle([pad,y,pad+55,y+2], fill=hex_rgb('#6366F1'))
+            y += 14
+            for line in text_wrap(summary[:450], fnt['body'], W-2*pad-20, draw)[:14]:
+                draw.text((pad+10,y), line, font=fnt['body'], fill=hex_rgb('#374151'))
+                y += 26
+            y += 16
+            draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
+            y += 14
+
+        elif sec == 'keypoints':
+            y += 10
+            lbl = 'Ключевые инсайты' if lang=='ru' else 'Key Insights'
+            draw.text((pad, y), lbl, font=fnt['h3'], fill=hex_rgb('#0EA5E9'))
+            y += 28
+            draw.rectangle([pad,y,pad+55,y+2], fill=hex_rgb('#0EA5E9'))
+            y += 14
+            for i, kp in enumerate(kps):
+                acc = hex_rgb(ACCENT_SEQ[i % len(ACCENT_SEQ)])
+                # Number circle
+                cx, cy, r2 = pad+16, y+13, 13
+                draw.ellipse([cx-r2,cy-r2,cx+r2,cy+r2], fill=acc)
+                ntxt = str(i+1)
+                nb = draw.textbbox((0,0),ntxt,font=fnt['num'])
+                draw.text((cx-(nb[2]-nb[0])//2-1, cy-8), ntxt, font=fnt['num'], fill=(255,255,255))
+                lines = text_wrap(kp[:180], fnt['body'], W-2*pad-80, draw)
+                for li,line in enumerate(lines[:3]):
+                    draw.text((pad+40, y+li*24), line, font=fnt['body'], fill=hex_rgb('#1E293B'))
+                y += max(len(lines),1)*24+16
+            y += 10
+            draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
+            y += 14
+
+        elif sec == 'topics':
+            y += 10
+            lbl = 'Основные темы' if lang=='ru' else 'Main Topics'
+            draw.text((pad,y), lbl, font=fnt['h3'], fill=hex_rgb('#10B981'))
+            y += 28
+            draw.rectangle([pad,y,pad+55,y+2], fill=hex_rgb('#10B981'))
+            y += 14
+            for i, topic in enumerate(topics):
+                acc = hex_rgb(ACCENT_SEQ[(i+2)%len(ACCENT_SEQ)])
+                draw.rectangle([pad,y,pad+4,y+42], fill=acc)
+                ttl = topic.get('title','')[:70]
+                tlines = text_wrap(ttl, fnt['h3'], W-2*pad-30, draw)
+                draw.text((pad+16,y+4), tlines[0], font=fnt['h3'], fill=hex_rgb('#0F172A'))
+                desc = topic.get('description','')[:160]
+                dlines = text_wrap(desc, fnt['small'], W-2*pad-30, draw)
+                for dl,dline in enumerate(dlines[:2]):
+                    draw.text((pad+16, y+28+dl*19), dline, font=fnt['small'], fill=hex_rgb('#6B7280'))
+                y += 28+min(len(dlines),2)*19+16
+            y += 8
+            draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
+            y += 14
+
+        elif sec == 'quote':
+            y += 12
+            q = quotes[0][:280]
+            qtxt = f'"{q}"'
+            qlines = text_wrap(qtxt, fnt['quote'], W-2*pad-60, draw)
+            ch = len(qlines)*30+50
+            rr(draw, pad,y, W-pad,y+ch, 10, fill=hex_rgb('#EEF2FF'))
+            draw.rectangle([pad,y,pad+5,y+ch], fill=hex_rgb('#6366F1'))
+            draw.text((pad+18,y+10), '❝', font=fnt['h2'], fill=hex_rgb('#6366F1'))
+            for li,line in enumerate(qlines):
+                draw.text((pad+22,y+46+li*30), line, font=fnt['quote'], fill=hex_rgb('#1E3A8A'))
+            y += ch+20
+
+        elif sec == 'insight':
+            y += 10
+            ilines = text_wrap(core, fnt['body'], W-2*pad-40, draw)
+            ch = len(ilines)*28+72
+            rr(draw,pad,y,W-pad,y+ch,10,fill=hex_rgb('#0F172A'))
+            ilbl = '💡 Главный вывод' if lang=='ru' else '💡 Core Insight'
+            draw.text((pad+20,y+14), ilbl, font=fnt['h3'], fill=hex_rgb('#6366F1'))
+            for li,line in enumerate(ilines):
+                draw.text((pad+20,y+48+li*28), line, font=fnt['body'], fill=(200,210,230))
+            y += ch+20
+
+        elif sec == 'entities':
+            y += 10
+            cats = [
+                ('Люди' if lang=='ru' else 'People', entities.get('people',[]),'#818CF8'),
+                ('Организации' if lang=='ru' else 'Orgs', entities.get('organizations',[]),'#34D399'),
+                ('Места' if lang=='ru' else 'Places', entities.get('places',[]),'#FB923C'),
+            ]
+            cw = (W-2*pad-20)//3
+            for ci,(clbl,items,cc) in enumerate(cats):
+                cx = pad+ci*(cw+10)
+                rr(draw,cx,y,cx+cw,y+32,6,fill=hex_rgb(cc))
+                draw.text((cx+10,y+6), clbl[:20], font=fnt['small'], fill=(255,255,255))
+                iy = y+38
+                for item in items[:4]:
+                    draw.text((cx+6,iy), '• '+str(item)[:28], font=fnt['small'], fill=hex_rgb('#374151'))
+                    iy+=20
+            y += 130
+
+    # Footer
+    draw.rectangle([0,H-28,W,H], fill=hex_rgb('#F1F5F9'))
+    draw.text((pad,H-20), 'Knowledge Studio', font=fnt['small'], fill=hex_rgb('#9CA3AF'))
+
+    img.save(str(out), 'PNG', dpi=(150,150))
+    logging.info(f"Infographic generated: {out} ({out.stat().st_size//1024}KB)")
 
 
 def gen_mindmap(source: dict, out: Path) -> None:
