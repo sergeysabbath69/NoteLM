@@ -959,7 +959,71 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
                     iy+=20
             y += 130
 
-    # Footer
+    # ── Try to add AI illustration ────────────────────────────────────────────
+    try:
+        import io as _io
+        from google.genai import types as _gtypes
+        
+        # Build illustration prompt from source content
+        kps_txt = '; '.join([str(k)[:60] for k in kps[:3]])
+        topics_txt = ', '.join([t.get('title','') for t in topics[:3]])
+        sentiment_map = {
+            'positive': 'optimistic, bright, uplifting',
+            'negative': 'serious, dramatic, warning',
+            'neutral':  'balanced, professional, informative',
+            'mixed':    'dynamic, contrasting, complex',
+        }
+        mood = sentiment_map.get(a.get('sentiment','neutral'), 'professional')
+        
+        illus_prompt = (
+            f"Flat vector editorial illustration, white background, absolutely no text or letters. "
+            f"Topic: {name[:60]}. Themes: {topics_txt}. "
+            f"Mood: {mood}. "
+            f"Style: modern infographic illustration, vibrant colors, geometric shapes, "
+            f"abstract but meaningful visual metaphors. High quality, clean design."
+        )
+        
+        illus_resp = _client.models.generate_content(
+            model='gemini-3.1-flash-image-preview',
+            contents=illus_prompt,
+            config=_gtypes.GenerateContentConfig(response_modalities=['IMAGE','TEXT'])
+        )
+        
+        for part in illus_resp.candidates[0].content.parts:
+            if hasattr(part,'inline_data') and part.inline_data:
+                from PIL import Image as _PIL
+                illus_img = _PIL.open(_io.BytesIO(part.inline_data.data))
+                # Resize to fit right side (400x300)
+                illus_w, illus_h = 420, 320
+                illus_img = illus_img.resize((illus_w, illus_h), _PIL.LANCZOS)
+                
+                # Extend canvas height for illustration
+                new_H = H + illus_h + 50
+                new_img = _PIL.new('RGB', (W, new_H), hex_rgb('#FFFFFF'))
+                new_img.paste(img, (0, 0))
+                
+                # Add illustration section header
+                new_draw = ImageDraw.Draw(new_img)
+                new_draw.rectangle([0, H-28, W, H], fill=hex_rgb('#F1F5F9'))
+                new_draw.text((pad, H-20), 'Knowledge Studio', font=fnt['small'], fill=hex_rgb('#9CA3AF'))
+                
+                # Illustration area
+                iy = H + 10
+                new_draw.rectangle([0, iy-5, W, iy+illus_h+30], fill=hex_rgb('#F8FAFC'))
+                ill_label = '🎨 Визуализация темы' if lang=='ru' else '🎨 Visual'
+                new_draw.text((pad, iy+2), ill_label, font=fnt['small'], fill=hex_rgb('#6B7280'))
+                # Center the illustration
+                ix = (W - illus_w) // 2
+                new_img.paste(illus_img, (ix, iy+22))
+                
+                # Save extended image
+                new_img.save(str(out), 'PNG', dpi=(150,150))
+                logging.info(f"Infographic+illustration generated: {out}")
+                return
+    except Exception as _e:
+        logging.warning(f"AI illustration failed ({_e}), saving without illustration")
+
+    # Footer + save without illustration
     draw.rectangle([0,H-28,W,H], fill=hex_rgb('#F1F5F9'))
     draw.text((pad,H-20), 'Knowledge Studio', font=fnt['small'], fill=hex_rgb('#9CA3AF'))
 
