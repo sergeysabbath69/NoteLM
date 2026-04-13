@@ -743,6 +743,7 @@ def _gen_infographic_matplotlib(source: dict, out: Path) -> None:
     plt.close(fig)
 
 
+import logging
 def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
     """Generate beautiful editorial-style infographic using PIL (like NotebookLM quality)."""
     from PIL import Image as PILImage, ImageDraw, ImageFont
