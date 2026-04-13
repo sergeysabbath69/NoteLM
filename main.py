@@ -808,22 +808,22 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
 
     def sec_h(k):
         if k=='header': return 185
-        if k=='summary': return len(wrap(summary[:450],F['body'],W-2*pad-40,dd))*26+90
+        if k=='summary': return len(wrap(summary[:450],F['body'],W-2*pad-40,dd))*26+110
         if k=='kps':
             h_=70
-            for kp in kps: h_+=max(len(wrap(kp[:180],F['body'],W-2*pad-80,dd)),1)*23+22
+            for kp in kps: h_+=max(len(wrap(kp[:200],F['body'],W-2*pad-88,dd)),1)*23+28
             return h_+20
         if k=='topics':
             h_=70; cw=(W-2*pad-16)//2
             for t in topics:
-                h_+=max(len(wrap(t.get('title','')[:60],F['h3'],cw-30,dd)),1)*27
-                h_+=max(len(wrap(t.get('description','')[:120],F['sm'],cw-30,dd)),1)*20+20
+                h_+=max(len(wrap(t.get('title','')[:60],F['h3'],W-2*pad-60,dd)),1)*27
+                h_+=max(len(wrap(t.get('description','')[:160],F['sm'],W-2*pad-60,dd)),1)*20+28
             return h_+20
         if k=='quote' and quotes:
             return len(wrap(f'"{quotes[0][:280]}"',F['body'],W-2*pad-60,dd))*28+80
         if k=='stats': return 110
         if k=='insight' and core:
-            return len(wrap(core,F['body'],W-2*pad-40,dd))*26+90
+            return len(wrap(core,F['body'],W-2*pad-40,dd))*26+110
         return 0
 
     secs = ['header','summary','kps']
@@ -891,8 +891,8 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
                 desc = t.get('description','')[:160]
                 tlines=wrap(ttl,F['h3'],W-2*pad-60,draw)
                 dlines=wrap(desc,F['sm'],W-2*pad-60,draw)
-                th=len(tlines)*27+len(dlines[:3])*20+28
-                th=max(th,56)
+                th=len(tlines)*27+len(dlines[:3])*20+36
+                th=max(th,64)
                 rr(draw,pad,y,W-pad,y+th,8,fill=h('#F8FAFC'))
                 draw.rectangle([pad,y,pad+5,y+th],fill=acc)
                 # Emoji number
