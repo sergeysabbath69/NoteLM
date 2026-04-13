@@ -744,6 +744,55 @@ def _gen_infographic_matplotlib(source: dict, out: Path) -> None:
 
 
 import logging
+
+def gen_ai_background(source: dict, size: tuple = (1200, 1000)) -> PILImage | None:
+    """Generate AI visual background (abstract shapes, colors, no text). Returns PIL Image or None."""
+    from PIL import Image as _PIL
+    import io as _io
+    from google.genai import types as _gtypes
+
+    a = source.get("analysis") or {}
+    name = source.get("name", "")[:60]
+    topics = [t.get("title", "") for t in a.get("topics", [])[:3]]
+    topics_txt = ", ".join(topics) if topics else "abstract patterns"
+    sentiment = a.get("sentiment", "neutral")
+
+    mood_map = {
+        "positive": "bright, vibrant, uplifting colors, dynamic shapes",
+        "negative": "deep, dramatic, contrasting tones, serious mood",
+        "neutral": "balanced, professional, harmonious palette",
+        "mixed": "dynamic, layered, multidimensional composition",
+    }
+    mood = mood_map.get(sentiment, "professional, balanced composition")
+
+    bg_prompt = (
+        f"Abstract artistic background, modern sleek design, white/light base. "
+        f"NO TEXT, NO LETTERS, NO WORDS, NO NUMBERS. Only visual elements. "
+        f"Topic: {name}. Theme elements: {topics_txt}. "
+        f"Mood: {mood}. "
+        f"Style: editorial infographic background, geometric shapes, flowing lines, "
+        f"subtle gradients, modern corporate aesthetic, clean and sophisticated. "
+        f"High quality, professional background suitable for text overlay."
+    )
+
+    try:
+        resp = _client.models.generate_content(
+            model='gemini-3.1-flash-image-preview',
+            contents=bg_prompt,
+            config=_gtypes.GenerateContentConfig(response_modalities=['IMAGE','TEXT'])
+        )
+
+        for part in resp.candidates[0].content.parts:
+            if hasattr(part, 'inline_data') and part.inline_data:
+                bg_img = _PIL.open(_io.BytesIO(part.inline_data.data))
+                bg_img = bg_img.resize(size, _PIL.LANCZOS)
+                return bg_img
+    except Exception as e:
+        logging.warning(f"AI background generation failed: {e}")
+
+    return None
+
+
 def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
     """Generate beautiful editorial-style infographic using PIL (like NotebookLM quality)."""
     from PIL import Image as PILImage, ImageDraw, ImageFont
@@ -845,28 +894,60 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
     H = sum(sec_h(s) for s in sections) + 80
     H = max(H, 900)
 
+    # ── Try to get AI background first ────────────────────────────────────────
+    bg_img = gen_ai_background(source, size=(W, H))
+    use_bg = bg_img is not None
+
     # ── Draw ────────────────────────────────────────────────────────────────────
-    img = PILImage.new('RGB',(W,H), hex_rgb('#FFFFFF'))
+    if use_bg and bg_img:
+        img = bg_img.convert('RGBA')
+    else:
+        img = PILImage.new('RGBA', (W, H), (255, 255, 255, 255))
+
     draw = ImageDraw.Draw(img)
+
+    # Layout config based on background availability
+    if use_bg:
+        text_col_w = min(620, W - 50)
+        header_fill = (15, 23, 42, 220)
+        section_fill = (15, 23, 42, 200)
+        text_primary = (248, 250, 252)
+        text_secondary = (196, 203, 212)
+    else:
+        text_col_w = W - 2 * pad
+        header_fill = hex_rgb('#0F172A')
+        section_fill = None
+        text_primary = hex_rgb('#1E293B')
+        text_secondary = hex_rgb('#374151')
 
     y = 0
     for sec in sections:
         if sec == 'header':
-            draw.rectangle([0,0,W,110], fill=hex_rgb('#0F172A'))
-            draw.rectangle([0,106,W,110], fill=hex_rgb('#6366F1'))
-            tl = text_wrap(name[:80], fnt['h1'], W-2*pad, draw)
-            draw.text((pad, 30), tl[0], font=fnt['h1'], fill=(255,255,255))
+            if use_bg:
+                draw.rectangle([0, 0, text_col_w, 115], fill=header_fill)
+                tl = text_wrap(name[:80], fnt['h1'], text_col_w - pad - 20, draw)
+                draw.text((pad, 30), tl[0], font=fnt['h1'], fill=text_primary)
+                if y + 100 < H:
+                    draw.rectangle([0, 106, text_col_w, 110], fill=(99, 102, 241, 200))
+            else:
+                draw.rectangle([0,0,W,110], fill=hex_rgb('#0F172A'))
+                draw.rectangle([0,106,W,110], fill=hex_rgb('#6366F1'))
+                tl = text_wrap(name[:80], fnt['h1'], W-2*pad, draw)
+                draw.text((pad, 30), tl[0], font=fnt['h1'], fill=(255,255,255))
             y = 128
 
         elif sec == 'summary':
             y += 12
             lbl = 'Краткое содержание' if lang=='ru' else 'Summary'
-            draw.text((pad, y), lbl, font=fnt['h3'], fill=hex_rgb('#6366F1'))
+            section_color = (99, 102, 241) if use_bg else hex_rgb('#6366F1')
+            text_color = text_primary if use_bg else section_color
+            draw.text((pad, y), lbl, font=fnt['h3'], fill=text_color)
             y += 28
-            draw.rectangle([pad,y,pad+55,y+2], fill=hex_rgb('#6366F1'))
+            draw.rectangle([pad,y,pad+55,y+2], fill=section_color)
             y += 14
-            for line in text_wrap(summary[:450], fnt['body'], W-2*pad-20, draw)[:14]:
-                draw.text((pad+10,y), line, font=fnt['body'], fill=hex_rgb('#374151'))
+            text_w = text_col_w - pad - 20 if use_bg else W-2*pad-20
+            for line in text_wrap(summary[:450], fnt['body'], text_w, draw)[:14]:
+                draw.text((pad+10,y), line, font=fnt['body'], fill=text_secondary if use_bg else hex_rgb('#374151'))
                 y += 26
             y += 16
             draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
@@ -875,21 +956,22 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
         elif sec == 'keypoints':
             y += 10
             lbl = 'Ключевые инсайты' if lang=='ru' else 'Key Insights'
-            draw.text((pad, y), lbl, font=fnt['h3'], fill=hex_rgb('#0EA5E9'))
+            kp_color = (14, 165, 233) if use_bg else hex_rgb('#0EA5E9')
+            draw.text((pad, y), lbl, font=fnt['h3'], fill=text_primary if use_bg else kp_color)
             y += 28
-            draw.rectangle([pad,y,pad+55,y+2], fill=hex_rgb('#0EA5E9'))
+            draw.rectangle([pad,y,pad+55,y+2], fill=kp_color)
             y += 14
+            kp_text_w = text_col_w - pad - 80 if use_bg else W-2*pad-80
             for i, kp in enumerate(kps):
                 acc = hex_rgb(ACCENT_SEQ[i % len(ACCENT_SEQ)])
-                # Number circle
                 cx, cy, r2 = pad+16, y+13, 13
                 draw.ellipse([cx-r2,cy-r2,cx+r2,cy+r2], fill=acc)
                 ntxt = str(i+1)
                 nb = draw.textbbox((0,0),ntxt,font=fnt['num'])
                 draw.text((cx-(nb[2]-nb[0])//2-1, cy-8), ntxt, font=fnt['num'], fill=(255,255,255))
-                lines = text_wrap(kp[:180], fnt['body'], W-2*pad-80, draw)
+                lines = text_wrap(kp[:180], fnt['body'], kp_text_w, draw)
                 for li,line in enumerate(lines[:3]):
-                    draw.text((pad+40, y+li*24), line, font=fnt['body'], fill=hex_rgb('#1E293B'))
+                    draw.text((pad+40, y+li*24), line, font=fnt['body'], fill=text_primary if use_bg else hex_rgb('#1E293B'))
                 y += max(len(lines),1)*24+16
             y += 10
             draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
@@ -898,20 +980,24 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
         elif sec == 'topics':
             y += 10
             lbl = 'Основные темы' if lang=='ru' else 'Main Topics'
-            draw.text((pad,y), lbl, font=fnt['h3'], fill=hex_rgb('#10B981'))
+            topic_color = (16, 185, 129) if use_bg else hex_rgb('#10B981')
+            draw.text((pad,y), lbl, font=fnt['h3'], fill=text_primary if use_bg else topic_color)
             y += 28
-            draw.rectangle([pad,y,pad+55,y+2], fill=hex_rgb('#10B981'))
+            draw.rectangle([pad,y,pad+55,y+2], fill=topic_color)
             y += 14
+            topic_w = text_col_w - pad - 30 if use_bg else W-2*pad-30
             for i, topic in enumerate(topics):
                 acc = hex_rgb(ACCENT_SEQ[(i+2)%len(ACCENT_SEQ)])
                 draw.rectangle([pad,y,pad+4,y+42], fill=acc)
                 ttl = topic.get('title','')[:70]
-                tlines = text_wrap(ttl, fnt['h3'], W-2*pad-30, draw)
-                draw.text((pad+16,y+4), tlines[0], font=fnt['h3'], fill=hex_rgb('#0F172A'))
+                tlines = text_wrap(ttl, fnt['h3'], topic_w, draw)
+                title_fill = text_primary if use_bg else hex_rgb('#0F172A')
+                draw.text((pad+16,y+4), tlines[0], font=fnt['h3'], fill=title_fill)
                 desc = topic.get('description','')[:160]
-                dlines = text_wrap(desc, fnt['small'], W-2*pad-30, draw)
+                dlines = text_wrap(desc, fnt['small'], topic_w, draw)
+                desc_fill = text_secondary if use_bg else hex_rgb('#6B7280')
                 for dl,dline in enumerate(dlines[:2]):
-                    draw.text((pad+16, y+28+dl*19), dline, font=fnt['small'], fill=hex_rgb('#6B7280'))
+                    draw.text((pad+16, y+28+dl*19), dline, font=fnt['small'], fill=desc_fill)
                 y += 28+min(len(dlines),2)*19+16
             y += 8
             draw.rectangle([pad,y,W-pad,y+1], fill=hex_rgb('#E2E8F0'))
@@ -921,22 +1007,27 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
             y += 12
             q = quotes[0][:280]
             qtxt = f'"{q}"'
-            qlines = text_wrap(qtxt, fnt['quote'], W-2*pad-60, draw)
+            quote_w = text_col_w - pad - 60 if use_bg else W-2*pad-60
+            qlines = text_wrap(qtxt, fnt['quote'], quote_w, draw)
             ch = len(qlines)*30+50
-            rr(draw, pad,y, W-pad,y+ch, 10, fill=hex_rgb('#EEF2FF'))
-            draw.rectangle([pad,y,pad+5,y+ch], fill=hex_rgb('#6366F1'))
-            draw.text((pad+18,y+10), '❝', font=fnt['h2'], fill=hex_rgb('#6366F1'))
+            quote_bg = (238, 242, 255) if not use_bg else (30, 30, 50)
+            rr(draw, pad,y, min(W-pad, text_col_w),y+ch, 10, fill=quote_bg)
+            draw.rectangle([pad,y,pad+5,y+ch], fill=(99, 102, 241))
+            draw.text((pad+18,y+10), '❝', font=fnt['h2'], fill=(99, 102, 241))
             for li,line in enumerate(qlines):
-                draw.text((pad+22,y+46+li*30), line, font=fnt['quote'], fill=hex_rgb('#1E3A8A'))
+                qtxt_fill = hex_rgb('#1E3A8A') if not use_bg else (200, 210, 240)
+                draw.text((pad+22,y+46+li*30), line, font=fnt['quote'], fill=qtxt_fill)
             y += ch+20
 
         elif sec == 'insight':
             y += 10
-            ilines = text_wrap(core, fnt['body'], W-2*pad-40, draw)
+            insight_w = text_col_w - pad - 40 if use_bg else W-2*pad-40
+            ilines = text_wrap(core, fnt['body'], insight_w, draw)
             ch = len(ilines)*28+72
-            rr(draw,pad,y,W-pad,y+ch,10,fill=hex_rgb('#0F172A'))
+            insight_fill = hex_rgb('#0F172A') if not use_bg else (15, 23, 42, 230)
+            rr(draw,pad,y,min(W-pad, text_col_w),y+ch,10,fill=insight_fill)
             ilbl = '💡 Главный вывод' if lang=='ru' else '💡 Core Insight'
-            draw.text((pad+20,y+14), ilbl, font=fnt['h3'], fill=hex_rgb('#6366F1'))
+            draw.text((pad+20,y+14), ilbl, font=fnt['h3'], fill=(99, 102, 241))
             for li,line in enumerate(ilines):
                 draw.text((pad+20,y+48+li*28), line, font=fnt['body'], fill=(200,210,230))
             y += ch+20
@@ -1027,7 +1118,14 @@ def gen_infographic(source: dict, out: Path, lang: str = 'ru') -> None:
     draw.rectangle([0,H-28,W,H], fill=hex_rgb('#F1F5F9'))
     draw.text((pad,H-20), 'Knowledge Studio', font=fnt['small'], fill=hex_rgb('#9CA3AF'))
 
-    img.save(str(out), 'PNG', dpi=(150,150))
+    # Convert RGBA to RGB for saving as PNG
+    if img.mode == 'RGBA':
+        final_img = PILImage.new('RGB', img.size, (255, 255, 255))
+        final_img.paste(img, (0, 0), img)
+    else:
+        final_img = img
+
+    final_img.save(str(out), 'PNG', dpi=(150,150))
     logging.info(f"Infographic generated: {out} ({out.stat().st_size//1024}KB)")
 
 
